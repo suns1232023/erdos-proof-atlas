@@ -1,34 +1,22 @@
-
 -- lakefile.toml — ErdosAtlas Lean 4 project
 --
 -- REPAIR V2 (Lean Foundation Fix):
---   ① Added [[require]] mathlib block (was completely missing)
---   ② Removed [[lean_exe]] Main (simplify until lake build passes)
+--   ① Added [[require]] mathlib block
+--   ② Removed [[lean_exe]] Main (temporarily removed until library build passes)
 --   ③ Correct library root structure
---
--- Setup after clone:
---   cd formal/lean
---   lake update                 # generates lake-manifest.json
---   lake exe cache get          # downloads prebuilt mathlib cache
---   lake build                  # compiles ErdosAtlas
 
 [package]
 name = "ErdosAtlas"
 version = "0.1.0"
 defaultTargets = ["ErdosAtlas"]
 
--- ① REQUIRED: mathlib dependency (was missing — root cause of lake build failure)
+-- mathlib 依赖（请确保版本与您的 lean-toolchain 一致）
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
 rev = "v4.14.0"
 
--- Main library
+-- 主库配置
 [[lean_lib]]
 name = "ErdosAtlas"
 roots = ["ErdosAtlas"]
-
--- Main executable (requires Main.lean)
-[[lean_exe]]
-name = "Main"
-root = "Main"
