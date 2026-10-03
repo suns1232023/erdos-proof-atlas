@@ -1,0 +1,43 @@
+?
+    |{纉?  ?                  螈   ? U d Z ddlmZ ddlmZ ddlmZmZ ddlm	Z	  G d? de?      Z
+ G d? d	e?      Ze G d
+? d?      ?       Zg d?Z
+d
+ed<   dd?Zy)z?Dual-axis evidence model.
+
+Axis E: Computational evidence (E0-E5)
+Axis L: Formal/Lean evidence (L0-L5)
+
+A result is represented as (E-level, L-level), e.g. E5/L0 or E3/L5.
+No automated component may silently upgrade either axis.
+?    )?annotations)?IntEnum)?dataclass?field)?Optionalc                  ?   ? e Zd ZdZdZdZdZdZdZdZ	dd?Z
+dd	?Zy
+)?ComputationalEvidencez%E-axis: computational evidence level.r   ?   ?   ?   ?   ?   c                ?   ? d| j                   ? ?S )N?E??value??selfs    ?/workspace/erdos-proof-atlas/src/atlas/schema/evidence.py?labelzComputationalEvidence.label   ?   € ????????    c                ?   ? ddddddd?| j                      S )NzIdea or conjecturezNumerical result (not a proof)zComputational resultz&Independently verified computationallyz!Exactified (exact algebraic form)z.Symbolically certified (algebraic certificate)?r   r
+   r   r   r
+   r   r   r   s    r   ?descriptionz!ComputationalEvidence.description   s,   € ?#?/?%?7?2???
+? ???? 	r   N??return?str)?__name__?__module__?__qualname__?__doc__?IDEA?NUMERICAL?COMPUTATIONAL?INDEPENDENTLY_VERIFIED?EXACTIFIED?SYMBOLICALLY_CERTIFIEDr   r   ? r   r   r	   r	      s/   ? ?/?€D?€I?€M???€J??? ?r   r	   c                  驚   ? e Zd ZdZdZdZdZdZdZdZ	dd?Z
+dd	?Zd
+d
+?Zy)?FormalEvidencez#L-axis: formal/Lean evidence level.r   r
+   r   r   r
+   r   c                ?   ? d| j                   ? ?S )N?Lr   r   s    r   r   zFormalEvidence.label1   r   r   c                ?   ? ddddddd?| j                      S )NzNot formalizedzStatement formalized in LeanzDefinitions formalizedzKey lemmas formalizedzTheorem proved (may use sorry)z(Lean build verified (no sorry, no axiom)r   r   r   s    r   r   zFormalEvidence.description4   s,   € ??-?'?&?/?9?
+? ???? 	r   c                ?   ? | t         j                  k(  S )z7Only L5 (no sorry, no axiom) counts as formally proved.)r+   ?LEAN_BUILD_VERIFIEDr   s    r   ?is_formally_provedz!FormalEvidence.is_formally_proved>   s   € ?攡?9?9?9?9r   Nr   ?r   ?bool)
+r   r    r!   r"   ?NOT_FORMALIZED?STATEMENT_FORMALIZED?DEFINITIONS_FORMALIZED?KEY_LEMMAS_FORMALIZED?THEOREM_PROVEDr0   r   r   r1   r)   r   r   r+   r+   (   s6   ? ?-?€N???????€N??? ??:r   r+   c                  骉   ? e Zd ZU dZded<   ded<   dZded<   dd	?Zdd
+?Zdd?Zdd?Z	y
+)?EvidenceStatusz3Combined evidence status for a mathematical result.r	   ?computationalr+   ?formal? r   ?notesc                髉   ? | j                   j                  ?       ? d| j                  j                  ?       ? ?S )N?/)r;   r   r<   r   s    r   r   zEvidenceStatus.labelJ   s1   € ??$?$?*?*?,?-≦╰瘂﹞?@?@?B?C?D?Dr   c                髗   ? | j                   t        j                  k\  xr | j                  t        j
+                  k(  S )z6Only E5/L5 with no sorry qualifies as formally proved.)r;   r	   r(   r<   r+   r0   r   s    r   ?is_theoremzEvidenceStatus.is_theoremM   s6   € ? 
+???7?N?N?N? 
+B???渵?A?A?A?	
+r   c                ?   ? | j                   j                  ?       S )u-   Alias for is_theorem() 鈥?only L5 qualifies.)r<   r1   r   s    r   r1   z!EvidenceStatus.is_formally_provedT   s   € ?弡墈?-?-?/?/r   c           
+     髒  ? | j                   j                  | j                   j                  ?       | j                   j                  ?       | j                  j                  | j                  j                  ?       | j                  j                  ?       | j                  ?       | j                  ?       | j                  d?S )N)	r;   ?computational_label?computational_descriptionr<   ?formal_label?formal_description?combinedr1   r>   )r;   ?namer   r   r<   r1   r>   r   s    r   ?to_dictzEvidenceStatus.to_dictX   s?   € ?!?/?/?4?4?'?5?5?;?;?=?-?;?;?G?G?I?梜慿?&?&? 烱橩?-?-?/?&???9?9?;?????&?9?9?;?梈慫?
+
+? 
+	
+r   Nr   r2   )r   ?dict)
+r   r    r!   r"   ?__annotations__r>   r   rB   r1   rK   r)   r   r   r:   r:   C   s/   ? ?=?(?(???€E?僌?E?
+?0?
+r   r:   ))r$   ?THEOREM)r%   rN   )?AI_GENERATED?VERIFIED)?CERTIFICATE?FORMAL_PROOF)?GITHUB_ACTIONS_PASS?EPISTEMIC_STATUS_CHANGEzlist[tuple[str, str]]?_FORBIDDEN_UPGRADESc                骦   ? t         D ]"  \  }}| |k(  s?||k(  s?t        d| ? d|? d??      ? y)z)Raise ValueError if upgrade is forbidden.zFORBIDDEN: Cannot auto-upgrade z -> z'. This requires actual formal evidence.N)rU   ?ValueError)?from_status?to_status?forbidden_from?forbidden_tos       r   ?validate_upgrader\   p   sE   € ?;?$?????(╕??F??1??竏??? N8? 8?? 
+? )<r   N)rX   r   rY   r   r   ?None)r"   ?__future__r   ?enumr   ?dataclassesr   r   ?typingr   r	   r+   r:   rU   rM   r\   r)   r   r   ?<module>rb      s_   ??? #? ? (? ?楪? ?:怶? :? ?
+? 
+? ?
+騀.? ?*? ?r   
