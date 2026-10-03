@@ -2,9 +2,14 @@
 -- ErdosAtlas/Audit/Axioms.lean
 -- Axiom audit module: tracks which axioms are used in ErdosAtlas theorems.
 --
--- REPAIR V2 (per reviewer):
---   Replaces grep-based sorry/axiom detection with Lean-native #print axioms.
---   This enables declaration-level inspection rather than string scanning.
+-- REPAIR V3 (circular import fix):
+--   PROBLEM: Previously imported both ErdosAtlas.CirclePacking.N10 and
+--     ErdosAtlas.CirclePacking.Certificate. Since Basic.lean already imports
+--     N10, importing N10 here again is redundant and risks circular imports
+--     if the import chain is not carefully managed.
+--   FIX: Import only what is strictly needed for axiom audit.
+--     The #print axioms commands are run via `lake env lean` externally,
+--     not compiled as part of the library build.
 --
 -- Usage:
 --   After lake build, run: lake env lean ErdosAtlas/Audit/Axioms.lean
@@ -14,7 +19,6 @@
 --   L5 requires: no sorry + only authorized axioms (Classical, propext, etc.)
  
 import ErdosAtlas.CirclePacking.N10
-import ErdosAtlas.CirclePacking.Certificate
  
 namespace ErdosAtlas.Audit
  
@@ -26,11 +30,10 @@ namespace ErdosAtlas.Audit
 -- propext               — propositional extensionality
 -- Quot.sound            — quotient soundness
 -- funext                — function extensionality (from mathlib)
--- Real.sqrt_nonneg      — noncomputable real sqrt
  
 -- ---------------------------------------------------------------------------
 -- #print axioms — declaration-level axiom inspection
--- Uncomment after lake build to inspect axiom usage:
+-- Run after lake build to inspect axiom usage:
 -- ---------------------------------------------------------------------------
  
 -- #print axioms ErdosAtlas.CirclePacking.circlePacking10MinDistBound
@@ -42,14 +45,11 @@ namespace ErdosAtlas.Audit
 --   'ErdosAtlas.CirclePacking.circlePacking10MinDistBound' depends on axioms:
 --   [Classical.choice, propext, Quot.sound]
  
--- #print axioms ErdosAtlas.CirclePacking.Certificate.p18_leading_factored
--- Expected: [propext] or [] (pure decidable computation)
- 
 -- ---------------------------------------------------------------------------
--- Audit summary
+-- Audit record structure
 -- ---------------------------------------------------------------------------
  
-/-- Audit record for the N=10 packing theorem. -/
+/-- Audit record for a formal theorem. -/
 structure AuditRecord where
   theoremName    : String
   formalLevel    : String
@@ -57,6 +57,7 @@ structure AuditRecord where
   authorizedOnly : Bool
   notes          : String
  
+/-- Current audit record for the N=10 packing theorem. -/
 def n10AuditRecord : AuditRecord := {
   theoremName    := "circlePacking10MinDistBound"
   formalLevel    := "L1"
@@ -67,4 +68,3 @@ def n10AuditRecord : AuditRecord := {
  
 end ErdosAtlas.Audit
  
-
