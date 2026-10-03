@@ -1,24 +1,0 @@
-?
-    蟴纉?  ?                   ?  ? d Z ddlZddlmc mZ ddlZddlZddl	m
-Z
- ej                  j                  d e
- e
-e?      j                  j                  j                  dz  ?      ?       ddlmZmZ d? Zej(                  j+                   e?        d??      d	? ?       Zy)
-u3   Formal tests 鈥?check Lean availability and build.?    N)?Path?src)?check_lean_available?run_lean_buildc                  骕  ? t        ?       } t        | t        ?      }|?sddt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      nddt        j                  ?       v st        j                  | ?      rt        j                  | ?      nddt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      ndt        j                  |?      d?z  }t        t        j                  |?      ?      ?d}y)zDLean check should run without crashing (even if Lean not installed).z5assert %(py4)s
-{%(py4)s = %(py0)s(%(py1)s, %(py2)s)
-}?isinstance?available?bool)?py0?py1?py2?py4N)
-r   r   r
-   ?@py_builtins?locals?@pytest_ar?_should_repr_global_name?_saferepr?AssertionError?_format_explanation)r	   ?@py_assert3?@py_format5s      ?/workspace/erdos-proof-atlas/tests/formal/test_lean.py?test_lean_check_runsr      s?   € ?$?&€I?恑??&?&?&?&?&?&?&?&??&?&?&??&?&?&?&?&?&恑?&?&?&恑?&?&?&?&?&?&??&?&?&??&?&?&?&?&?&?&?&?&?&?    zLean not installed)?reasonc                  髕  ? t        t        d?      ?      } | j                  }t        |t        ?      }|?sddt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      nddt        j                  ?       v st        j                  | ?      rt        j                  | ?      ndt        j                  |?      dt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      ndt        j                  |?      d?z  }t        t        j                  |?      ?      ?d x}}| j                  } |?       }d}||v }|s羣        j                  d|fd	||f?      dt        j                  ?       v st        j                  | ?      rt        j                  | ?      ndt        j                  |?      t        j                  |?      t        j                  |?      d
-?z  }dd|iz  }t        t        j                  |?      ?      ?d x}x}x}}y )
-Nzformal/leanzRassert %(py6)s
-{%(py6)s = %(py0)s(%(py3)s
-{%(py3)s = %(py1)s.success
-}, %(py4)s)
-}r   ?resultr
-   )r   r   ?py3r   ?py6)?L0?L1?L2?L3?L4?L5)?in)zK%(py4)s
-{%(py4)s = %(py2)s
-{%(py2)s = %(py0)s.formal_level
-}()
-} in %(py7)s)r   r
-   r   ?py7zassert %(py9)s?py9)r   r   ?successr   r
-   r   r   r   r   r   r   r   ?formal_level?_call_reprcompare)	r   ?@py_assert2?@py_assert5?@py_format7?@py_assert1r   ?@py_assert6?@py_format8?@py_format10s	            r   ?test_lean_buildr3      s8  € ?淒??/?0€F?梟憂?+?恘?+?+?+?+?+?+?+?+??+?+?+??+?+?+?+?+?+恌?+?+?+恌?+?+?+恘?+?+?+?+?+?+?+?+?+?+?+?+?+?+?+?+?+?+?+????C?? ?C?C?C? ?C?C?C?C?C? ?C?C?C?C?C?C?C??C?C?C??C?C?C??C?C?C? ?C?C?C?C?C?C?C?C?C?C?Cr   )?__doc__?builtinsr   ?_pytest.assertion.rewrite?assertion?rewriter   ?pytest?sys?pathlibr   ?path?insert?str?__file__?parent?atlas.formalization.lean_interfacer   r   r   ?mark?skipifr3   ? r   r   ?<module>rE      s€   ?? 9?  ? ? ? ? ??????憈楬搤?,?,?3?3?:?:窾?B?C? D? S?'? ?????,?.?.?K??L?D? M?Dr   

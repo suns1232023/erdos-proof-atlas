@@ -1,93 +1,0 @@
-?
-    蟴纉  ?                   ?  ? d Z ddlZddlmc mZ ddlZddlZ	ddl
-Z
-ddlmZ e
-j                  j                  d e ee?      j"                  j"                  j"                  dz  ?      ?       ddlmZmZmZmZmZ d? Zd? Zd? Zd	? Zd
-? Zd? Zd? Zd
-? Zy)z'Unit tests for circle packing geometry.?    N)?Path?src)?PackingConfiguration?compute_min_distance?check_boundary_constraints?build_contact_graph?evaluate_configurationc            
-      ?  ? t         j                  } ddgddgg} | |?      }t        |?      }d}||z
-  }t        |?      }d}||k  }|?s玹	        j
-                  d|fd||f?      dt
-        j                  ?       v st	        j                  t        ?      rt	        j                  t        ?      nddt
-        j                  ?       v st	        j                  t        ?      rt	        j                  t        ?      nddt
-        j                  ?       v st	        j                  t         ?      rt	        j                  t         ?      ndt	        j                  | ?      t	        j                  |?      t	        j                  |?      t	        j                  |?      t	        j                  |?      t	        j                  |?      t	        j                  |?      d	?z  }	d
-d|	iz  }
-t        t	        j                  |
-?      ?      ?d x} x}x}x}x}x}x}x}}y )N?        g      ?g?仚梣=)?<)z?(py15)s
-{%(py15)s = %(py0)s((%(py10)s
-{%(py10)s = %(py1)s(%(py8)s
-{%(py8)s = %(py4)s
-{%(py4)s = %(py2)s.array
-}(%(py6)s)
-})
-} - %(py12)s))
-} < %(py18)s?absr   ?np)
-?py0?py1?py2?py4?py6?py8?py10?py12?py15?py18zassert %(py20)s?py20)r   ?arrayr   r
-   ?@pytest_ar?_call_reprcompare?@py_builtins?locals?_should_repr_global_name?_saferepr?AssertionError?_format_explanation)?@py_assert3?@py_assert5?@py_assert7?@py_assert9?@py_assert11?@py_assert13?@py_assert14?@py_assert17?@py_assert16?@py_format19?@py_format21s              ?/workspace/erdos-proof-atlas/tests/unit/test_geometry.py?test_min_distance_two_pointsr/      s6  € ?&?O╮?╣皉?癵?>?O?>???O?#???@?O??O?@??F?O??F?G?O??O?G??O?O?O?O?G??O?O?O?O?O?O??O?O?O??O?O?O?O?O?O?#?O?O?O?#?O?O?O?O?O?O?O?O?O?O?O?O燞?O?O?O?>?O?O?O???O?O?O?@?O?O?O??O?O?O?G?O?O?O??O?O?O?O?O?O?O?O?O?    c                  螈  ? t        t        j                  ddgddgg?      ?      \  } }g }| }| rt        |?      }d}||k(  }|}|?s乨ddt	        j
-                  ?       v st
-        j                  | ?      rt
-        j                  | ?      ndiz  }|j                  |?       | r閠
-        j                  dfdf?      d	t	        j
-                  ?       v st
-        j                  t        ?      rt
-        j                  t        ?      nd	d
-t	        j
-                  ?       v st
-        j                  |?      rt
-        j                  |?      nd
-t
-        j                  |?      t
-        j                  |?      d?z  }dd
-|iz  }	|j                  |	?       t
-        j                  |d?      i z  }
-dd|
-iz  }t        t
-        j                  |?      ?      ?d x}x}x}x}}y )N鐨櫃櫃櫣?缤烫烫天?r   z%(py2)sr   ?ok??==)z1%(py7)s
-{%(py7)s = %(py4)s(%(py5)s)
-} == %(py10)s?len?v)r   ?py5?py7r   z%(py12)sr   zassert %(py15)sr   ?r   r   r   r7   r   r   r   r   r    ?appendr   ?_format_boolopr!   r"   )r4   r8   ?@py_assert1?@py_assert0?@py_assert6r&   ?@py_assert8?@py_format3?@py_format11?@py_format13?@py_format14?@py_format16s               r.   ?test_boundary_validrG      s?   € ?&?癱?窩???E?F?G丒€B??????恆??楢??楢?????????????????????楢?????????????????恆???恆???????楢??????????????r0   c                  蟋  ? t        t        j                  ddgddgg?      ?      \  } }g }|  }|}|rt        |?      }d}||kD  }|}|?s乨ddt	        j
-                  ?       v st
-        j                  | ?      rt
-        j                  | ?      ndiz  }|j                  |?       |r閠
-        j                  dfdf?      d	t	        j
-                  ?       v st
-        j                  t        ?      rt
-        j                  t        ?      nd	d
-t	        j
-                  ?       v st
-        j                  |?      rt
-        j                  |?      nd
-t
-        j                  |?      t
-        j                  |?      d?z  }	dd
-|	iz  }
-|j                  |
-?       t
-        j                  |d?      i z  }dd|iz  }t        t
-        j                  |?      ?      ?d x}x}x}x}x}}y )N?      ??      ?r   znot %(py2)sr   r4   )?>)z0%(py8)s
-{%(py8)s = %(py5)s(%(py6)s)
-} > %(py11)sr7   r8   )r9   r   r   ?py11z%(py13)s?py13zassert %(py16)s?py16r;   )
-r4   r8   r>   r#   r?   r%   ?@py_assert10r&   ?@py_format4?@py_format12rE   ?@py_format15?@py_format17s
-                r.   ?test_boundary_violationrT      s  € ?&?癱?窩???E?F?G丒€B?? 坮?? ?? ?攃?揻? 榪? 恌榪慾? ? ? ? ? ? 坮? ? ? 坮? ? ? ? ?? ? ? 恌榪? ? ? ? ? ? 攃? ? ? 攃? ? ? ? ? ? ?? ? ? ?? ? ? 恌? ? ? 榪? ? ? ? ? ? ? ? ? ? ? ? ? ? r0   c                  螽  ? t        j                  ddgddgg?      } t        | dd??      }d}|j                  } |?       }||v }|s羣	        j
-                  d|fd||f?      t	        j                  |?      dt        j                  ?       v st	        j                  |?      rt	        j                  |?      ndt	        j                  |?      t	        j                  |?      d	?z  }d
-d|iz  }t        t	        j                  |?      ?      ?d x}x}x}}|j                  }d}||k(  }	|	s璽	        j
-                  d|	fd
-||f?      dt        j                  ?       v st	        j                  |?      rt	        j                  |?      ndt	        j                  |?      t	        j                  |?      d?z  }
-dd|
-iz  }t        t	        j                  |?      ?      ?d x}x}	}y )Nr   rJ   g-C脞6?)?contact_tol?tolerance)?in)zF%(py1)s in %(py7)s
-{%(py7)s = %(py5)s
-{%(py5)s = %(py3)s.to_dict
-}()
-}?cg)r   ?py3r9   r:   zassert %(py9)s?py9r5   )z1%(py2)s
-{%(py2)s = %(py0)s.tolerance
-} == %(py5)s)r   r   r9   zassert %(py7)sr:   )
-r   r   r   ?to_dictr   r   r    r   r   r   r!   r"   rW   )?coordsrY   r?   ?@py_assert4r@   ?@py_assert2?@py_format8?@py_format10r>   r#   ?@py_format6s              r.   ?test_contact_graph_reports_tolerancerc      s  € ?廥塜??恮?燘榵?(?)€F?榁燬癲?;€B??&????&???&???&?&?&?&???&?&?&??&?&?&?&?&?&??&?&?&??&?&?&??&?&?&??&?&?&?&?&?&?&?
-???????????????????????????????????????r0   c                  髒  ? t        dt        j                  ddgddgg?      ?      } t        | ?      }|j                  }|syddt        j                  ?       v st        j                  |?      rt        j                  |?      ndt        j                  |?      d?z  }t        t        j                  |?      ?      ?d }y )N?   r2   r3   z*assert %(py2)s
-{%(py2)s = %(py0)s.passed
-}?vr)r   r   ?r   r   r   r	   ?passedr   r   r   r   r    r!   r"   )?configrf   r>   rB   s       r.   ?test_evaluate_validrj      ss   € ?!??癈▂?竎??C?D?E€F???'€B?
-????????????????????????r0   c            	      驞  ? t        dt        j                  ddgddgddgg?      ?      } t        | ?      }|j                  }| }|s謉dt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      nddt        j                  ?       v st        j                  | ?      rt        j                  | ?      ndt        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x}x}}y )N?   r2   r3   鶯assert not %(py5)s
-{%(py5)s = %(py3)s
-{%(py3)s = %(py0)s(%(py1)s)
-}.passed
-}r	   ri   ?r   r   rZ   r9   rg   ?ri   r_   r^   r@   ?@py_format7s        r.   ?test_evaluate_overlapping_rejectedrq      s?   € ?!??癈▂?竎?繡???M?N?O€F?%爁?-?4?-?4?4?4?4?4?4?4?4?4?4?4?4?%?4?4?4?%?4?4?4?4?4?4爁?4?4?4爁?4?4?4?-?4?4?4?4?4?4?4?4?4?4r0   c                  ?  ? t        dt        j                  ddgddgg?      ?      } t        | ?      }|j                  }| }|s謉dt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      nddt        j                  ?       v st        j                  | ?      rt        j                  | ?      ndt        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x}x}}y )Nre   rI   rJ   rm   r	   ri   rn   rg   ro   s        r.   ?test_evaluate_boundary_rejectedrs   "   s?   € ?!??癈▂?竎??C?D?E€F?%爁?-?4?-?4?4?4?4?4?4?4?4?4?4?4?4?%?4?4?4?%?4?4?4?4?4?4爁?4?4?4爁?4?4?4?-?4?4?4?4?4?4?4?4?4?4r0   c            	      螵   ? t        j                  t        ?      5  t        dt	        j
-                  ddgddgg?      ?       d d d ?       y # 1 sw Y   y xY w)Nrl   r2   r3   )?pytest?raises?ValueErrorr   r   r   ? r0   r.   ?test_shape_checkry   &   s:   € ???攝?"?楺????╯?癝?癐?>???@? 
-#?"?"鷖   ?A	?A) ?__doc__?builtinsr   ?_pytest.assertion.rewrite?assertion?rewriter   ru   ?numpyr   ?sys?pathlibr   ?path?insert?str?__file__?parent?atlas.geometry.circle_packingr   r   r   r   r	   r/   rG   rT   rc   rj   rq   rs   ry   rx   r0   r.   ?<module>r?      s~   ?? -?  ? ? ? ? ? ??????憈楬搤?,?,?3?3?:?:窾?B?C? D?M? M?P??!? ??5?5?Ar0   
