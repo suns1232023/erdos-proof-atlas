@@ -31,14 +31,14 @@ jobs:
             exit 1
           fi
           echo "[PASS] project_contract.json present"
-          python3 -c "
+           python3 - << 'PYEOF2'
           import json
-          c = json.load(open('formal/lean/project_contract.json'))
-          print(f'  project_mode: {c["project_mode"]}')
-          print(f'  formal_level: {c["current_formal_level"]}')
-          print(f'  mathlib_rev: {c["mathlib_rev"]}')
-          print(f'  required_modules: {len(c["required_modules"])} files')
-          "
+          c = json.load(open("formal/lean/project_contract.json"))
+          print(f"  project_mode: {c['project_mode']}")
+          print(f"  formal_level: {c['current_formal_level']}")
+          print(f"  mathlib_rev: {c['mathlib_rev']}")
+          print(f"  required_modules: {len(c['required_modules'])} files")
+          PYEOF2
 
       - name: Verify required modules (from project_contract.json)
         run: |
