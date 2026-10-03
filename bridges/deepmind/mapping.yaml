@@ -1,25 +1,7 @@
 
-# mapping.yaml — DeepMind Bridge Theorem Mapping (V2)
-#
-# REPAIR V2 (per reviewer):
-#   ① Unified canonical theorem name: circlePacking10MinDistBound
-#      (was inconsistent with export_deepmind.py which used "circlePacking10MinDist")
-#   ② Replaced "deepmind_compatible: true" (boolean)
-#      with structured status: {status: METADATA_EXPORT, validated: false}
-#      Reason: boolean True was misleading — actual DeepMind schema validation
-#      has not been performed. Only metadata JSON export is implemented.
-#   ③ Added lean_file path for validation scripts to check file existence
+# mapping.yaml — DeepMind Bridge Theorem Mapping
 
 version: "2.0"
-
-# ---------------------------------------------------------------------------
-# CANONICAL THEOREM NAME — single source of truth
-# Must match exactly in:
-#   - formal/lean/ErdosAtlas/CirclePacking/N10.lean (theorem declaration)
-#   - scripts/export_deepmind.py (lean_theorem field)
-#   - JSON output (lean_theorem field)
-#   - all tests and documentation
-# ---------------------------------------------------------------------------
 canonical_theorem_name: "circlePacking10MinDistBound"
 
 problems:
@@ -27,18 +9,17 @@ problems:
     display_name: "10-Point Square Packing Optimal Distance"
     description: >
       Find the maximum minimum pairwise distance d10 for 10 points
-      in the unit square [0,1]². The optimal value d10 ≈ 0.421279543983903...
-      satisfies an irreducible degree-18 polynomial P18(d) over Q,
-      with Galois group Gal(P18/Q) ≅ S18 (not expressible by radicals).
+      in the unit square [0,1]^2. The optimal value satisfies an
+      irreducible degree-18 polynomial P18(d) over Q,
+      with Galois group Gal(P18/Q) isomorphic to S18.
     ams_classification:
-      - "52C15"   # Packings and coverings in 2 dimensions
-      - "11R04"   # Algebraic numbers: general
-      - "13P10"   # Gröbner bases and relevant algorithms
-    historical_source: "de Groot, Peikert, Würtz (1990)"
+      - "52C15"
+      - "11R04"
+      - "13P10"
+    historical_source: "de Groot, Peikert, Wurtz (1990)"
     oeis: "A281065"
 
     lean:
-      # REPAIR ①: Canonical name — unified across all files
       lean_theorem: "circlePacking10MinDistBound"
       lean_full_name: "ErdosAtlas.CirclePacking.circlePacking10MinDistBound"
       lean_file: "formal/lean/ErdosAtlas/CirclePacking/N10.lean"
@@ -48,31 +29,19 @@ problems:
       sorry_present: true
       uses_real_not_float: true
       conclusion_nontrivial: true
-      notes: >
-        Statement is mathematically meaningful: uses ℝ (not Float),
-        conclusion is a non-trivial upper bound (not → True).
-        Proof marked sorry pending L3/L4 development.
-        Path to L5: L2 (definitions) → L3 (lemmas) → L4 (proof) → L5 (lake build, no sorry).
 
     computational:
       evidence_level: "E5"
       evidence_description: "SYMBOLICALLY_CERTIFIED"
-      certificate_file: "certificates/circle_packing_n10/certificate.json"
+      certificate_file: "certificates/circle_packing_n10/polynomial_certificate.json"
       polynomial_degree: 18
       galois_group: "S_18"
       irreducibility_prime: 17
       root_isolation_method: "Sturm_sequence"
 
-    # REPAIR ②: Replaced boolean deepmind_compatible: true
-    # with structured status dict
     deepmind:
       status: "METADATA_EXPORT"
       validated: false
-      note: >
-        Metadata JSON points to a real Lean theorem file and declaration.
-        Full DeepMind formalization compatibility (theorem format, tactic style,
-        import structure, schema validation) has not yet been verified.
-        Update validated: true only after actual DeepMind schema validation passes.
       export_format: "json"
       export_script: "scripts/export_deepmind.py"
       validation_script: "scripts/validate_deepmind_mapping.py"
