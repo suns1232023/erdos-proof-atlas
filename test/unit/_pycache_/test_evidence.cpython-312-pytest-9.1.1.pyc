@@ -1,0 +1,65 @@
+?
+    蟴纉?  ?                   ?  ? d Z ddlZddlmc mZ ddlZddlZddl	m
+Z
+ ej                  j                  d e
+ e
+e?      j                  j                  j                  dz  ?      ?       ddlmZmZmZmZ d? Zd? Zd? Zd	? Zd
+? Zd? Zd? Zd
+? Zd? Zd? Zd? Zy)z(Unit tests for dual-axis evidence model.?    N)?Path?src)?ComputationalEvidence?FormalEvidence?EvidenceStatus?validate_upgradec                  蟀  ? t         j                  } t         j                  }| |k  }|s        j                  d|fd| |f?      dt        j                  ?       v st        j                  t         ?      rt        j                  t         ?      ndt        j                  | ?      dt        j                  ?       v st        j                  t         ?      rt        j                  t         ?      ndt        j                  |?      d?z  }dd|iz  }t        t        j                  |?      ?      ?d x} x}}t        j                  } t        j                  }| |k  }|s        j                  d|fd| |f?      dt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      ndt        j                  | ?      dt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      ndt        j                  |?      d?z  }dd|iz  }t        t        j                  |?      ?      ?d x} x}}y )	N)?<)z\%(py2)s
+{%(py2)s = %(py0)s.NUMERICAL
+} < %(py6)s
+{%(py6)s = %(py4)s.SYMBOLICALLY_CERTIFIED
+}r   ??py0?py2?py4?py6zassert %(py8)s?py8)z^%(py2)s
+{%(py2)s = %(py0)s.NOT_FORMALIZED
+} < %(py6)s
+{%(py6)s = %(py4)s.LEAN_BUILD_VERIFIED
+}r   )r   ?NUMERICAL?SYMBOLICALLY_CERTIFIED?@pytest_ar?_call_reprcompare?@py_builtins?locals?_should_repr_global_name?_saferepr?AssertionError?_format_explanationr   ?NOT_FORMALIZED?LEAN_BUILD_VERIFIED)?@py_assert1?@py_assert5?@py_assert3?@py_format7?@py_format9s        ?/workspace/erdos-proof-atlas/tests/unit/test_evidence.py?test_evidence_orderingr#      s;  € ? ?*?*?Y?B?Y?Y?Y?*?Y?Y?Y?Y?Y?*?Y?Y?Y?Y?Y?Y?Y? ?Y?Y?Y? ?Y?Y?Y?*?Y?Y?Y?Y?Y?Y?B?Y?Y?Y?B?Y?Y?Y?Y?Y?Y?Y?Y?Y?Y?Y??(?(?M??M?M?M?(?M?M?M?M?M?(?M?M?M?M?M?M?M??M?M?M??M?M?M?(?M?M?M?M?M?M??M?M?M??M?M?M?M?M?M?M?M?M?M?M?    c                  ?  ? t         j                  } | j                  } |?       }|sヾdt        j                  ?       v st        j                  t         ?      rt        j                  t         ?      ndt        j                  | ?      t        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x} x}}t         j                  } | j                  } |?       }| }|sヾdt        j                  ?       v st        j                  t         ?      rt        j                  t         ?      ndt        j                  | ?      t        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x} x}x}}t         j                  } | j                  } |?       }| }|sヾdt        j                  ?       v st        j                  t         ?      rt        j                  t         ?      ndt        j                  | ?      t        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x} x}x}}y )Nzvassert %(py6)s
+{%(py6)s = %(py4)s
+{%(py4)s = %(py2)s
+{%(py2)s = %(py0)s.LEAN_BUILD_VERIFIED
+}.is_formally_proved
+}()
+}r   r   zuassert not %(py6)s
+{%(py6)s = %(py4)s
+{%(py4)s = %(py2)s
+{%(py2)s = %(py0)s.THEOREM_PROVED
+}.is_formally_proved
+}()
+}z{assert not %(py6)s
+{%(py6)s = %(py4)s
+{%(py4)s = %(py2)s
+{%(py2)s = %(py0)s.STATEMENT_FORMALIZED
+}.is_formally_proved
+}()
+})r   r   ?is_formally_provedr   r   r   r   r   r   r   ?THEOREM_PROVED?STATEMENT_FORMALIZED)r   r   r   r    ?@py_assert7?@py_format8s         r"   ?test_only_l5_is_formally_provedr+      sv  € ??-?-?B?-?@?@?B?@?B?B?B?B?B?B?B?B??B?B?B??B?B?B?-?B?B?B?@?B?B?B?B?B?B?B?B?B?B??,?,?A?,?????A???A?A?A?A?A?A?A?A?A?A?A寏?A?A?A寏?A?A?A?,?A?A?A???A?A?A?A?A?A?A?A?A?A??2?2?G?2?E?E?G?E?G?G?G?G?G?G?G?G?G?G?G寏?G?G?G寏?G?G?G?2?G?G?G?E?G?G?G?G?G?G?G?G?G?Gr$   c                  鬆  ? t        t        j                  t        j                  ?      } | j
+                  } |?       }|s峝dt
+        j                  ?       v st        j                  | ?      rt        j                  | ?      ndt        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x}}y )NzEassert %(py4)s
+{%(py4)s = %(py2)s
+{%(py2)s = %(py0)s.is_theorem
+}()
+}?s?r   r
+   r   )
+r   r   r   r   r   ?is_theoremr   r   r   r   r   r   r   )r-   r   r   ?@py_format5s       r"   ?test_e5_l5_is_theoremr1      sr   € ??,?C?C腲譋g袳g?h€A????????????????????????????????r$   c                  螵  ? t        t        j                  t        j                  ?      } | j
+                  } |?       }| }|s峝dt
+        j                  ?       v st        j                  | ?      rt        j                  | ?      ndt        j                  |?      t        j                  |?      d?z  }t        t        j                  |?      ?      ?d x}x}}y )NzIassert not %(py4)s
+{%(py4)s = %(py2)s
+{%(py2)s = %(py0)s.is_theorem
+}()
+}r-   r.   )
+r   r   r   r   r   r/   r   r   r   r   r   r   r   )r-   r   r   r   ?@py_format6s        r"   ?test_e5_l0_is_not_theoremr4      s{   € ??,?C?C腲譋b袳b?c€A?弢墊?墊媬?垀????????坬???坬???坾???垀??????r$   c                  髕   ? t        j                  t        ?      5  t        dd?       d d d ?       y # 1 sw Y   y xY w)Nr   ?THEOREM??pytest?raises?ValueErrorr   ? r$   r"   ?test_forbidden_numerical_to_theoremr<      s"   € ???攝?"?4癧??L?"?"?"   ?0?9c                  髕   ? t        j                  t        ?      5  t        dd?       d d d ?       y # 1 sw Y   y xY w)N?COMPUTATIONALr6   r7   r;   r$   r"   ?test_forbidden_computational_to_theoremr@      s"   € ???攝?"?4癬纈?P?"?"?"鷕=   c                  髕   ? t        j                  t        ?      5  t        dd?       d d d ?       y # 1 sw Y   y xY w)N?AI_GENERATED?VERIFIEDr7   r;   r$   r"   ?test_forbidden_ai_to_verifiedrD      s"   € ???攝?"?4癪繸?P?"?"?"鷕=   c                  髕   ? t        j                  t        ?      5  t        dd?       d d d ?       y # 1 sw Y   y xY w)N?CERTIFICATE?FORMAL_PROOFr7   r;   r$   r"   ?test_forbidden_certificate_to_formal_proofrH   !   s"   € ???攝?"?4癩繬?S?"?"?"鷕=   c                  ?  ? t        t        j                  t        j                  ?      } | j
+                  } |?       }d}||k(  }|s羣
+        j                  d|fd||f?      dt        j                  ?       v st
+        j                  | ?      rt
+        j                  | ?      ndt
+        j                  |?      t
+        j                  |?      t
+        j                  |?      d?z  }dd|iz  }t        t
+        j                  |?      ?      ?d x}x}x}}y )NzE3/L1)?==)zD%(py4)s
+{%(py4)s = %(py2)s
+{%(py2)s = %(py0)s.label
+}()
+} == %(py7)sr-   )r   r
+   r   ?py7zassert %(py9)s?py9)r   r   ?INDEPENDENTLY_VERIFIEDr   r(   ?labelr   r   r   r   r   r   r   r   )r-   r   r   ?@py_assert6r   r*   ?@py_format10s          r"   ?test_evidence_labelrQ   $   s?   € ??,?C?C腲譋h袳h?i€A???????????????????????????????????????????????r$   c                  髱   ? ddl m}  t        j                  t        ?      5   | dddg dddi d??       d d d ?       y # 1 sw Y   y xY w)	Nr   ??SearchResult?testg      ??   g      ?r6   ??status)?atlas.search.multistartrT   r8   r9   r:   rS   s    r"   ?test_search_result_must_be_numericalrZ   (   s5   € ?4???攝?"?怴楩?爎?╒癈???L? 
+#?"?"鷖	   ?;?Ac                  髽   ? ddl m}  t        j                  t        ?      5   | ddddddg dd	d
+dddd??       d d d ?       y # 1 sw Y   y xY w)Nr   ??GaloisCertificate?P18?   TF榛   ?   ?computational?S18rU   r6   rW   )?atlas.certification.certificater]   r8   r9   r:   r\   s    r"   ?test_galois_cert_cannot_be_theoremre   -   sC   € ?A???攝?"?????║?皉?竉萓蠸Y衂_衊f衝w?x? 
+#?"?"鷖   ?A ? A	) ?__doc__?builtinsr   ?_pytest.assertion.rewrite?assertion?rewriter   r8   ?sys?pathlibr   ?path?insert?str?__file__?parent?atlas.schema.evidencer   r   r   r   r#   r+   r1   r4   r<   r@   rD   rH   rQ   rZ   re   r;   r$   r"   ?<module>rs      s?   ?? .?  ? ? ? ? ??????憈楬搤?,?,?3?3?:?:窾?B?C? D? i? i?N?H???M?Q?Q?T? ?M?yr$   
