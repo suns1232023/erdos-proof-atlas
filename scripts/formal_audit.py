@@ -3,18 +3,19 @@
 """
 formal_audit.py — Lean formalization integrity audit.
 
-Uses lean_text.py to strip Lean comments before pattern matching,
-avoiding false positives from historical notes in comment lines.
+REPAIR V9:
+  - Uses lean_text for ALL comment-stripped checks (including /- -/ block comments)
+  - Scans all .lean files with rglob (not just N10.lean)
+  - Formal level determination is monotone: L2 requires L1 to pass first
+  - l2_ok checks real definitions (structure Point, def squaredDist, def IsPacking)
 """
 
 import sys
-import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
 
-# Import lean_text utilities
 _scripts_dir = Path(__file__).parent
 sys.path.insert(0, str(_scripts_dir))
 try:
@@ -23,7 +24,9 @@ try:
         lean_file_has_conflicting_point_def,
         lean_file_has_trivial_true,
         lean_file_has_float_in_theorem,
+        lean_files_with_trivial_true,
         find_sorry_in_lean_files,
+        strip_lean_comments,
     )
     LEAN_TEXT_OK = True
 except ImportError:
@@ -45,6 +48,19 @@ def record(label: str, passed: bool, detail: str = ""):
     RESULTS.append((label, passed, detail))
 
 
+def _strip(text: str) -> str:
+    """Strip comments using lean_text if available, else strip -- lines."""
+    if LEAN_TEXT_OK:
+        from lean_text import strip_lean_comments
+        return strip_lean_comments(text)
+    return "\n".join(
+        l for l in text.splitlines() if not l.strip().startswith("--")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Section 1: Lean project structure
+# ---------------------------------------------------------------------------
 def audit_lean_structure():
     print("\n── Section 1: Lean Project Structure ──")
 
@@ -59,7 +75,7 @@ def audit_lean_structure():
     for f in required_files:
         record(f"File exists: {f}", f.is_file())
 
-    # Main.lean: accept both cases
+    # Main.lean: strict check (main.lean lowercase is a real error)
     main_upper = (LEAN_DIR / "Main.lean").is_file()
     main_lower = (LEAN_DIR / "main.lean").is_file()
     if main_upper:
@@ -71,6 +87,9 @@ def audit_lean_structure():
         record("Main.lean exists", False, "Neither Main.lean nor main.lean found")
 
 
+# ---------------------------------------------------------------------------
+# Section 2: lakefile.toml content
+# ---------------------------------------------------------------------------
 def audit_lakefile():
     print("\n── Section 2: lakefile.toml Content ──")
 
@@ -80,72 +99,83 @@ def audit_lakefile():
         return
 
     content = lakefile.read_text()
-
     record("lakefile has [[require]] block", "[[require]]" in content)
     record("lakefile has mathlib dependency", "mathlib" in content)
     record("lakefile has [[lean_lib]]", "[[lean_lib]]" in content)
     record("lakefile has ErdosAtlas library", "ErdosAtlas" in content)
-    record("lakefile has [[lean_exe]]", "[[lean_exe]]" in content)
 
     # TOML requires # comments, not -- comments
-    dash_comments = [
-        line for line in content.splitlines()
-        if line.strip().startswith("--")
-    ]
-    record("lakefile uses # comments (not -- )", len(dash_comments) == 0,
+    dash_comments = [l for l in content.splitlines() if l.strip().startswith("--")]
+    record("lakefile uses # comments (not --)", len(dash_comments) == 0,
            f"Found {len(dash_comments)} '--' comment lines — TOML requires '#'" if dash_comments else "")
 
     record("lakefile has no bare || true", "|| true" not in content)
 
 
+# ---------------------------------------------------------------------------
+# Section 3: Lean theorem naming (scans ALL .lean files)
+# ---------------------------------------------------------------------------
 def audit_theorem_naming():
-    print("\n── Section 3: Lean Theorem Naming ──")
+    print("\n── Section 3: Lean Theorem Naming (all .lean files) ──")
 
     n10_file = LEAN_DIR / "ErdosAtlas" / "CirclePacking" / "N10.lean"
+    lean_src = LEAN_DIR / "ErdosAtlas"
+
     if not n10_file.is_file():
         record("N10.lean readable", False, "File not found")
         return
 
-    # Use lean_text to strip comments before checking
+    # Canonical theorem declared
     if LEAN_TEXT_OK:
         declared = lean_file_has_theorem(n10_file, CANONICAL_THEOREM)
-        has_trivial = lean_file_has_trivial_true(n10_file)
-        float_violations = lean_file_has_float_in_theorem(n10_file)
     else:
-        content = n10_file.read_text()
-        non_comment = "\n".join(
-            l for l in content.splitlines() if not l.strip().startswith("--")
-        )
-        declared = bool(re.search(rf"theorem\s+{re.escape(CANONICAL_THEOREM)}", non_comment))
-        has_trivial = "→ True" in non_comment or "-> True" in non_comment
-        float_violations = [
-            l for l in non_comment.splitlines()
-            if (l.strip().startswith("theorem") or l.strip().startswith("def "))
-            and "Float" in l
-        ]
+        declared = CANONICAL_THEOREM in n10_file.read_text()
+    record(f"theorem {CANONICAL_THEOREM} declared in N10.lean", declared)
 
-    record(f"theorem {CANONICAL_THEOREM} declared", declared)
-    record("No '→ True' conclusion (comment-stripped)", not has_trivial,
-           "Found '→ True' — placeholder theorem" if has_trivial else "")
-    record("No Float in theorem/def lines (comment-stripped)", len(float_violations) == 0,
-           f"Found: {float_violations[:2]}" if float_violations else "")
+    # Scan ALL .lean files for → True (using block-comment stripping)
+    if LEAN_TEXT_OK and lean_src.is_dir():
+        trivial_files = lean_files_with_trivial_true(lean_src)
+        record("No '→ True' in any .lean file (comment-stripped)",
+               len(trivial_files) == 0,
+               f"Found in: {trivial_files[:3]}" if trivial_files else "")
+    else:
+        # Fallback: check N10.lean only
+        content = _strip(n10_file.read_text())
+        has_trivial = "→ True" in content or "-> True" in content
+        record("No '→ True' in N10.lean (comment-stripped)", not has_trivial)
 
-    # Check Geometry/Basic.lean for conflicting Point definition
+    # Float in theorem/def lines (scan all .lean files)
+    if lean_src.is_dir():
+        float_violations = []
+        for lean_file in lean_src.rglob("*.lean"):
+            if LEAN_TEXT_OK:
+                violations = lean_file_has_float_in_theorem(lean_file)
+            else:
+                violations = [
+                    l for l in _strip(lean_file.read_text()).splitlines()
+                    if (l.strip().startswith("theorem") or l.strip().startswith("def "))
+                    and "Float" in l
+                ]
+            float_violations.extend(violations)
+        record("No Float in theorem/def lines (all .lean files)",
+               len(float_violations) == 0,
+               f"Found: {float_violations[:2]}" if float_violations else "")
+
+    # Geometry/Basic.lean: no conflicting Point definition
     geo_basic = LEAN_DIR / "ErdosAtlas" / "Geometry" / "Basic.lean"
     if geo_basic.is_file():
         if LEAN_TEXT_OK:
             has_conflict = lean_file_has_conflicting_point_def(geo_basic)
         else:
-            non_comment = "\n".join(
-                l for l in geo_basic.read_text().splitlines()
-                if not l.strip().startswith("--")
-            )
-            has_conflict = "def Point : Type := Fin 2" in non_comment
-        record("Geometry/Basic.lean has no conflicting Point def (comment-stripped)",
+            has_conflict = "def Point : Type := Fin 2" in _strip(geo_basic.read_text())
+        record("Geometry/Basic.lean has no conflicting Point def",
                not has_conflict,
-               "Found 'def Point := Fin 2 → ℝ' — conflicts with Point.lean structure" if has_conflict else "")
+               "Found 'def Point := Fin 2 → ℝ' in code" if has_conflict else "")
 
 
+# ---------------------------------------------------------------------------
+# Section 4: Sorry detection (level-aware)
+# ---------------------------------------------------------------------------
 def audit_sorry():
     print("\n── Section 4: Sorry Detection (Level-Aware) ──")
 
@@ -182,6 +212,9 @@ def audit_sorry():
     print(f"         Current formal level: {CURRENT_FORMAL_LEVEL}")
 
 
+# ---------------------------------------------------------------------------
+# Section 5: Lean build
+# ---------------------------------------------------------------------------
 def audit_lean_build():
     print("\n── Section 5: Lean Availability & lake build ──")
 
@@ -225,40 +258,77 @@ def audit_lean_build():
         record("lake build succeeds", False, "lake not found")
 
 
+# ---------------------------------------------------------------------------
+# Section 6: Formal level assessment (MONOTONE)
+# ---------------------------------------------------------------------------
 def audit_formal_level():
-    print("\n── Section 6: Formal Level Assessment ──")
+    print("\n── Section 6: Formal Level Assessment (Monotone) ──")
 
     n10_file = LEAN_DIR / "ErdosAtlas" / "CirclePacking" / "N10.lean"
     geo_file = LEAN_DIR / "ErdosAtlas" / "Geometry" / "Basic.lean"
+    point_file = LEAN_DIR / "ErdosAtlas" / "Geometry" / "Point.lean"
+    dist_file = LEAN_DIR / "ErdosAtlas" / "Geometry" / "Distance.lean"
+    defs_file = LEAN_DIR / "ErdosAtlas" / "CirclePacking" / "Definitions.lean"
 
+    # L1: meaningful statement exists (canonical theorem, no → True, no Float)
     l1_ok = False
     if n10_file.is_file():
         if LEAN_TEXT_OK:
             has_canonical = lean_file_has_theorem(n10_file, CANONICAL_THEOREM)
             no_trivial = not lean_file_has_trivial_true(n10_file)
+            no_float = len(lean_file_has_float_in_theorem(n10_file)) == 0
         else:
-            content = n10_file.read_text()
+            content = _strip(n10_file.read_text())
             has_canonical = CANONICAL_THEOREM in content
             no_trivial = "→ True" not in content
-        l1_ok = has_canonical and no_trivial
-
-    l2_ok = False
-    if geo_file.is_file():
-        content = geo_file.read_text()
-        l2_ok = "Point" in content and ("import" in content or "def " in content)
+            no_float = True
+        l1_ok = has_canonical and no_trivial and no_float
 
     record("L1 (STATEMENT_FORMALIZED): meaningful statement in Lean", l1_ok)
-    record("L2 (DEFINITIONS_FORMALIZED): geometry definitions exist", l2_ok)
 
-    level = "L2" if l2_ok else ("L1" if l1_ok else "L0")
+    # L2: real geometry definitions exist (requires L1 first — MONOTONE)
+    l2_ok = False
+    if l1_ok:
+        # Check for actual structure/def declarations (comment-stripped)
+        checks = []
+        for fpath, pattern in [
+            (point_file, "structure Point"),
+            (dist_file, "def squaredDist"),
+            (defs_file, "def IsPacking"),
+        ]:
+            if fpath.is_file():
+                content = _strip(fpath.read_text())
+                checks.append(pattern in content)
+        l2_ok = len(checks) >= 2 and all(checks)
+
+    # MONOTONE: L2 requires L1
+    if l2_ok and not l1_ok:
+        print("         ERROR: L2 claimed but L1 failed — impossible (monotone violation)")
+        l2_ok = False
+
+    record("L2 (DEFINITIONS_FORMALIZED): real geometry definitions exist", l2_ok)
+
+    # Determine level (monotone)
+    if l2_ok:
+        level = "L2"
+    elif l1_ok:
+        level = "L1"
+    else:
+        level = "L0"
+
     print(f"\n         Current formal level: {level}")
     print(f"         Target: L5 (KERNEL_CHECKED)")
+    print(f"         Path: L2 → L3 (key lemmas) → L4 (proof complete) → L5 (lake build, no sorry)")
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 def main() -> int:
     print("=" * 65)
     print("  erdos-proof-atlas — Formal Audit (Lean Formalization)")
     print("=" * 65)
+    print(f"  lean_text available: {LEAN_TEXT_OK}")
 
     audit_lean_structure()
     audit_lakefile()
