@@ -1,0 +1,22 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[symbolic,dev]"
+      - run: python -m pytest tests/regression/ -v
+      - run: python scripts/run_problem.py circle-packing-square --n 10 --restarts 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ github.run_number }}
+          path: results/latest/
