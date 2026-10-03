@@ -1,52 +1,0 @@
-?
-    ^z纉?  ?                  骴   ? d Z ddlmZ ddlZddlZddlmZ ddlmZ 	 	 	 	 	 	 	 	 	 	 	 	 dd?Z	d	d?Z
-y)
-zMReport generator. Labels: [E5/L5] [ALGEBRAIC] [COMP_VERIF] [NUMERICAL] [OPEN]?    )?annotationsN)?Path)?Optionalc                驲  ? t        j                  dt        j                  ?       ?      }dd| ? d|? d?dddd	d
-dddd
-ddd| ? d?ddg}	|r1|	d|j                  dd?      ? d?d|j                  dd?      ? d?dgz
-  }	n|	j	                  d?       |	ddgz
-  }	|r:|j                  dd?      }
-|
-rdnd}|	|? d|
-? d?d|j                  dd?      ? d?gz
-  }	n|	j	                  d ?       |	dd!gz
-  }	|rT|	d"|j                  d#d?      ? d?d$|j                  d%i ?      j                  d&d?      ? d?d'|j                  d(d?      ? ?gz
-  }	n|	j	                  d)?       |	dd*gz
-  }	|rE|	d+|j                  d,d?      ? d?d-|j                  d.d?      ? d?d/|j                  d0d?      ? ?d1gz
-  }	n|	j	                  d2?       |	dd3gz
-  }	|rZ|j                  d4d5?      }|	d6|? d7|j                  d&d?      ? d?d8|j                  d9d?      ? d?d:|j                  d;d?      ? d?gz
-  }	n|	j	                  d<?       |	dd=gz
-  }	|rE|	d>|j                  d?d?      ? d?d@|j                  dAd?      ? d?dB|j                  dCd?      ? d?gz
-  }	n|	j	                  dD?       |	g dE?z
-  }	dFj                  |	?      }
-|j
-                  |
-?       |
-S )GNz%Y-%m-%dT%H:%M:%SZu(   # Erd艖s Proof Atlas 鈥?Research Reportz
-Problem: `z`  |  Generated: `?`? z## Evidence Status LegenduA   - `[E5/L5]` 鈥?Symbolically certified + Lean-checked (strongest)u:   - `[E5/L0]` 鈥?Symbolically certified, not yet formalizedu<   - `[E3/L1]` 鈥?Independently verified, statement formalizedu<   - `[NUMERICAL]` 鈥?Numerical result only (E1). NOT a proof.u%   - `[OPEN]` 鈥?No evidence available.z---z## 1. Problem Definitionz
-Problem ID: `z## 2. Numerical Search [E1]z**[NUMERICAL]** Objective: `?objectivezN/AzAlgorithm: `?algorithmu'   > 鈿狅笍 NUMERICAL result. NOT a proof.z[OPEN] No search result.z### 3. Independent Verification [E3]?passedFz[E3/COMP_VERIF]z[NUMERICAL/FAIL]z
- Passed: `zMin distance: `?min_distancez[OPEN] No verification result.z## 4. Exact Certificate [E4/E5]z**[E5]** Degree: `?degreezIrreducibility: `?irreducible?statuszHistorical note: ?historical_notez![OPEN] No polynomial certificate.z## 5. Galois Certificate [E5]z**[E5]** Group claim: `?group_claimz	Method: `?methodzNotes: ?notesuF   > 鈿狅笍 ALGEBRAIC_CERTIFIED, not THEOREM. Lean proof required for L5.z[OPEN] No Galois certificate.z## 6. Lean Formalization?level?L0z**[z
-]** Status: `zLean file: `?lean_filez
-lake build: `?lake_buildz/[L0/OPEN] Lean formalization not yet available.z## 7. Provenancez	Run ID: `?run_idz
-Git commit: `?git_commitzTimestamp: `?timestamp_utcz[OPEN] No provenance record.)r   z## 8. Known Limitationsz_- Galois group: Steps 3-4 (primitivity, Jordan) are computational evidence, not rigorous proof.z>- Lean formalization: IMPLEMENTATION_PENDING for full theorem.uW   - Global optimality: relies on historical literature (Szab贸 et al. 2007, Specht 2022).r   z## 9. Open Tasksz,- [ ] Rigorous primitivity proof (GAP/Magma)z - [ ] Lean theorem without sorryz - [ ] DeepMind-compatible exportz"- [ ] N=11..20 polynomial database?
-)?time?strftime?gmtime?get?append?join?write_text)?problem_id?search_result?verification_result?polynomial_cert?galois_cert?lean_status?provenance?output_path?ts?linesr   ?label?l_level?reports                 ?/workspace/erdos-proof-atlas/src/atlas/reporting/generator.py?generate_atlas_reportr1   	   s?  € ? 
-???+琓痆玗?;€B?2?怹怢?2??癮?8?
-?#?K?D?F?F?/?
-?
-?
-?"??恷??%?
-?%?
-€E? ?
-?0??B?B?萿?U?V蠽W?X? ??2?2?竨?E?F繿?H?;?=? 	=?? 	???/?0?	坆?7?8?8€E??$?(?(???9??+?!?C??
-怳怗?爁燲≦?/?#?7?;?;窷??Q?R蠷S?T?V? 	V?? 	???5?6?	坆?3?4?4€E??
-?&??:?:?繣?J?K??M?%爋?9?9???K?O?O蠵X衁^?_?`衊a?b?%爋?9?9?K菳?O?P?Q?S? 	S?? 	???8?9?	坆?1?2?2€E??
-?+↘疧㎡窶??P?Q蠶R?S?榢無檕╤皍?=?>竌?@?楰烵橭℅癇?7?8?9?Z?\? 	\?? 	???4?5?	坆?,?-?-€E???????0??
-怌?恲?╧痮﹐竓纔?M?N萢?P? ????窾?C?D繟?F?!????竨?E?F繿?H?J? 	J?? 	???F?G?	坆?$?%?%€E??
-怚榡焠檔╔癳?<?=窺???!????竐?D?E繯?G? ??????F?G纐?I?K? 	K?? 	???3?4?	? 4? 4€E? 廦塝恥?€F?????"?€M?    c           	     骮  ? g d?}| j                  ?       D ]v  \  }}|j                  d|? ??       |j                  ?       D ]J  \  }}|j                  d|? d??       |j                  ?       D ]  \  }}|j                  d|d?d|? ??       ? 孡 寈 |j                  d?       dj                  |?      S )	N)?============================================================u#   ERD艕S PROOF ATLAS 鈥?FORMAL AUDITr4   z
-
-Problem: r   ?:z  z<30? z=
-============================================================)?itemsr    r!   )?resultsr,   ?problemr   ?categoryr7   ?key?vals           r0   ?generate_audit_reportr=   `   s?   € ?
-€E? #???????
-??恵???,?-?%焲檤瀪塐圚恊?廘塋?榟榋爍?)?*?!烱橩濵??怱???榬?燾??–??1?2? *?  .? +? 
-嘗丩??!???怳??r2   )r#   ?strr$   ?Optional[dict]r%   r?   r&   r?   r'   r?   r(   r?   r)   r?   r*   r   ?returnr>   )r8   ?dictr@   r>   )?__doc__?__future__r   ?jsonr   ?pathlibr   ?typingr   r1   r=   ? r2   r0   ?<module>rH      sV   ?? S? "? ? ? ?T?9?T豀V?T?5?T郈Q?T郹d?T鄆l?T鬾
-r2   
