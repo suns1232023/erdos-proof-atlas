@@ -15,8 +15,8 @@
   "computational_status": "SYMBOLICALLY_CERTIFIED",
   "certificate": "certificates/circle_packing_n10/polynomial_certificate.json",
   "provenance": {
-    "repository": "suns1232023/erdos-proof-atlas"
-  },
-  "historical_note": "Polynomial first established by de Groot, Peikert, Würtz (1990). OEIS A281065.",
-  "_repair_note": "REPAIR: lean_theorem unified to 'circlePacking10MinDistBound' (was 'circlePacking10MinDist' — missing 'Bound' suffix)"
+    "repository": "suns1232023/erdos-proof-atlas",
+    "historical_source": "de Groot, Peikert, Wurtz (1990)",
+    "oeis": "A281065"
+  }
 }
