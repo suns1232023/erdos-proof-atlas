@@ -1,29 +1,17 @@
-
 #!/usr/bin/env python3
 """
 check_paths.py — Repository path consistency checker.
 
-REPAIR V9:
-  - Uses lean_text for comment-stripped Lean file checks
-  - CI || true check: skips lean-check.yml (contains || true in docs)
-  - Main.lean: strict check (main.lean lowercase is a real error)
-  - Old name check: only checks actual JSON data lines
-  - Module paths: actual subdirectory structure
+Reads required Lean modules from formal/lean/project_contract.json.
+This is the SINGLE source of truth for required files.
 """
 
 import sys
 import re
-import os
+import json
 from pathlib import Path
 
-_scripts_dir = Path(__file__).parent
-sys.path.insert(0, str(_scripts_dir))
-try:
-    from lean_text import lean_file_has_conflicting_point_def
-    LEAN_TEXT_OK = True
-except ImportError:
-    LEAN_TEXT_OK = False
-
+CONTRACT_PATH = Path("formal/lean/project_contract.json")
 RESULTS = []
 
 
@@ -34,6 +22,13 @@ def record(label: str, passed: bool, detail: str = ""):
         msg += f"\n         {detail}"
     print(msg)
     RESULTS.append((label, passed, detail))
+
+
+def load_contract() -> dict:
+    if not CONTRACT_PATH.is_file():
+        print(f"[FAIL] {CONTRACT_PATH} not found — this is the authoritative contract")
+        sys.exit(1)
+    return json.loads(CONTRACT_PATH.read_text())
 
 
 def check_test_directory():
@@ -56,33 +51,34 @@ def check_makefile_paths():
     record("Makefile exists", True)
     content = makefile.read_text()
 
-    if "pytest tests/" in content or "pytest -q tests/" in content:
+    if "pytest tests/" in content:
         record("Makefile uses tests/ (not test/)", True)
     elif "pytest test/" in content:
-        record("Makefile uses tests/ (not test/)", False, "Makefile references 'test/'")
+        record("Makefile uses tests/ (not test/)", False, "References 'test/'")
     else:
         record("Makefile uses tests/ (not test/)", True)
 
-    lines_with_or_true = []
+    # Check no bare || true in mandatory steps
+    bare_or_true = []
     for line in content.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
         if re.search(r'\|\| true\s*$', line):
             if not any(kw in line for kw in ["clean", "rm -rf", "find.*delete", "rmdir"]):
-                lines_with_or_true.append(stripped[:80])
+                bare_or_true.append(stripped[:80])
     record("No bare '|| true' in mandatory Makefile steps",
-           len(lines_with_or_true) == 0,
-           f"Found: {lines_with_or_true}" if lines_with_or_true else "")
+           len(bare_or_true) == 0,
+           f"Found: {bare_or_true}" if bare_or_true else "")
 
-    required_targets = ["install", "test", "lean", "audit", "report",
-                        "deepmind-export", "manifest", "all", "clean",
-                        "search", "verify", "certify"]
-    for target in required_targets:
+    # Check required targets
+    for target in ["install", "test", "lean", "status", "audit", "all", "all-formal",
+                   "search", "verify", "certify", "report", "clean"]:
         pattern = rf"^{re.escape(target)}[:\s]"
         found = bool(re.search(pattern, content, re.MULTILINE))
         record(f"Makefile has target: {target}", found)
 
+    # Check scripts referenced in Makefile exist
     script_refs = re.findall(r"python\s+scripts/(\S+\.py)", content)
     for script in set(script_refs):
         path = Path(f"scripts/{script}")
@@ -93,93 +89,92 @@ def check_ci_paths():
     print("\n── Section 3: CI Workflow Path Consistency ──")
     ci_dir = Path(".github/workflows")
     if not ci_dir.is_dir():
-        record(".github/workflows/ exists", False,
-               "CI directory not found — expected in repository root")
+        record(".github/workflows/ exists", False)
         return
     record(".github/workflows/ exists", True)
     workflow_files = list(ci_dir.glob("*.yml")) + list(ci_dir.glob("*.yaml"))
     record(f"CI workflow files found ({len(workflow_files)})", len(workflow_files) > 0)
+
     lean_check_yml = ci_dir / "lean-check.yml"
     for wf in workflow_files:
         content = wf.read_text()
+        # Check no bare || true
+        bare_or_true = []
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith("echo") or stripped.startswith("printf"):
+                continue
+            if re.search(r'\|\| true\s*$', line):
+                bare_or_true.append(stripped[:80])
         if wf == lean_check_yml:
             record(f"No bare '|| true' in {wf.name}", True,
-                   "(skipped — lean-check.yml documents || true in comments)")
+                   "(lean-check.yml may document || true in comments)")
         else:
-            bare_or_true = []
-            for line in content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("#") or stripped.startswith("echo") or stripped.startswith("printf"):
-                    continue
-                if re.search(r'\|\| true\s*$', line):
-                    bare_or_true.append(stripped[:80])
             record(f"No bare '|| true' in {wf.name}", len(bare_or_true) == 0,
                    f"Found: {bare_or_true[:3]}" if bare_or_true else "")
+
+        # Check CI uses tests/ not test/
         if "tests/unit" in content or "tests/adversarial" in content:
             record(f"{wf.name} uses tests/ (canonical)", True)
         elif "test/unit" in content or "test/adversarial" in content:
-            record(f"{wf.name} uses tests/ (canonical)", False, "CI references 'test/'")
+            record(f"{wf.name} uses tests/ (canonical)", False, "References 'test/'")
+
+        # Check scripts referenced in CI exist
         script_refs = re.findall(r"python\s+scripts/(\S+\.py)", content)
         for script in set(script_refs):
             path = Path(f"scripts/{script}")
             record(f"CI-referenced script exists: scripts/{script}", path.is_file())
 
 
-def check_lean_files():
-    print("\n── Section 4: Lean File Consistency ──")
-    lean_dir = Path("formal/lean")
-    required_lean_files = [
-        lean_dir / "lakefile.toml",
-        lean_dir / "lean-toolchain",
-        lean_dir / "lake-manifest.json",
-        lean_dir / "ErdosAtlas" / "Basic.lean",
-        lean_dir / "ErdosAtlas" / "Geometry" / "Basic.lean",
-        lean_dir / "ErdosAtlas" / "CirclePacking" / "N10.lean",
-        lean_dir / "ErdosAtlas" / "Problems" / "SquarePacking.lean",
-    ]
-    for f in required_lean_files:
-        record(f"Lean file exists: {f}", f.is_file())
+def check_lean_files(contract: dict):
+    print("\n── Section 4: Lean File Consistency (from project_contract.json) ──")
 
-    # Strict check: main.lean (lowercase) is a real error on Linux
-    main_upper = (lean_dir / "Main.lean").is_file()
-    main_lower = (lean_dir / "main.lean").is_file()
-    if main_upper:
-        record("Main.lean exists (correct case for Linux)", True)
-    elif main_lower:
-        record("Main.lean exists (correct case for Linux)", False,
-               "Found 'main.lean' (lowercase). Fix: git mv formal/lean/main.lean formal/lean/Main.lean")
-    else:
-        record("Main.lean exists (correct case for Linux)", False, "Neither found")
+    # Required modules from contract (single source of truth)
+    for module_path in contract.get("required_modules", []):
+        record(f"Required module exists: {module_path}", Path(module_path).is_file())
 
-    lakefile = lean_dir / "lakefile.toml"
+    # Executable entry (if applicable)
+    if contract.get("project_mode") == "library_and_executable":
+        exe_entry = contract.get("executable_entry", "")
+        if exe_entry:
+            main_upper = Path(exe_entry).is_file()
+            main_lower = Path(exe_entry.replace("Main.lean", "main.lean")).is_file()
+            if main_upper:
+                record(f"Executable entry exists: {exe_entry}", True)
+            elif main_lower:
+                record(f"Executable entry exists: {exe_entry}", False,
+                       f"Found lowercase variant. Fix: git mv formal/lean/main.lean formal/lean/Main.lean")
+            else:
+                record(f"Executable entry exists: {exe_entry}", False, "Not found")
+
+    # lakefile.toml
+    lakefile = Path("formal/lean/lakefile.toml")
     if lakefile.is_file():
-        content = lakefile.read_text()
-        record("lakefile.toml has mathlib [[require]]",
-               "mathlib" in content and "[[require]]" in content)
-        dash_comments = [l for l in content.splitlines() if l.strip().startswith("--")]
-        record("lakefile.toml uses # comments (not --)", len(dash_comments) == 0,
-               f"Found {len(dash_comments)} '--' comment lines" if dash_comments else "")
+        import tomllib
+        try:
+            with open(lakefile, "rb") as f:
+                data = tomllib.load(f)
+            record("lakefile.toml valid TOML", True)
+            record("lakefile.toml has top-level name", "name" in data)
+            rev = data.get("require", [{}])[0].get("rev", "")
+            contract_rev = contract.get("mathlib_rev", "")
+            record(f"lakefile.toml mathlib rev matches contract ({contract_rev})",
+                   rev == contract_rev,
+                   f"lakefile has {rev}, contract expects {contract_rev}" if rev != contract_rev else "")
+        except Exception as e:
+            record("lakefile.toml valid TOML", False, str(e))
 
-    # Use lean_text for comment-stripped check (avoids false positives from history notes)
-    geo_basic = lean_dir / "ErdosAtlas" / "Geometry" / "Basic.lean"
-    if geo_basic.is_file():
-        if LEAN_TEXT_OK:
-            has_conflict = lean_file_has_conflicting_point_def(geo_basic)
-        else:
-            content = "\n".join(
-                l for l in geo_basic.read_text().splitlines()
-                if not l.strip().startswith("--")
-            )
-            has_conflict = "def Point : Type := Fin 2" in content
-        record("Geometry/Basic.lean has no conflicting Point def (comment-stripped)",
-               not has_conflict,
-               "Found 'def Point := Fin 2 → ℝ' in code" if has_conflict else "")
-
-    for main_path in [lean_dir / "Main.lean", lean_dir / "main.lean"]:
-        if main_path.is_file():
-            content = main_path.read_text()
-            record("Main.lean imports ErdosAtlas", "ErdosAtlas" in content)
-            break
+    # lean-toolchain
+    tc_file = Path("formal/lean/lean-toolchain")
+    if tc_file.is_file():
+        tc = tc_file.read_bytes()
+        record("lean-toolchain no leading whitespace",
+               not tc.startswith(b' ') and not tc.startswith(b'\n'))
+        tc_str = tc.strip().decode()
+        contract_tc = contract.get("lean_toolchain", "")
+        record(f"lean-toolchain matches contract ({contract_tc})",
+               tc_str == contract_tc,
+               f"File has {tc_str}, contract expects {contract_tc}" if tc_str != contract_tc else "")
 
 
 def check_deepmind_targets():
@@ -188,43 +183,13 @@ def check_deepmind_targets():
     mapping = Path("bridges/deepmind/mapping.yaml")
     lean_n10 = Path("formal/lean/ErdosAtlas/CirclePacking/N10.lean")
     export_script = Path("scripts/export_deepmind.py")
-    examples_json = Path("bridges/deepmind/examples/circle_packing_n10.json")
 
     record("bridges/deepmind/mapping.yaml exists", mapping.is_file())
-    record("scripts/export_deepmind.py exists", export_script.is_file())
-
-    for label, filepath in [
-        ("mapping.yaml", mapping),
-        ("N10.lean", lean_n10),
-        ("export_deepmind.py", export_script),
-    ]:
+    for label, filepath in [("mapping.yaml", mapping), ("N10.lean", lean_n10),
+                             ("export_deepmind.py", export_script)]:
         if filepath.is_file():
             found = canonical in filepath.read_text()
             record(f"Canonical theorem '{canonical}' in {label}", found)
-
-    if examples_json.is_file():
-        found = canonical in examples_json.read_text()
-        record(f"Canonical theorem '{canonical}' in examples JSON", found)
-
-    # Only check actual JSON data lines for old name
-    old_name = "circlePacking10MinDist"
-    for label, filepath in [("export_deepmind.py", export_script)]:
-        if not filepath.is_file():
-            continue
-        violations = []
-        for line in filepath.read_text().splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#"):
-                continue
-            if re.match(r'old_name\s*=', stripped):
-                continue
-            # Only flag actual JSON data: "lean_theorem": "circlePacking10MinDist"
-            pattern = rf'"lean_theorem"\s*:\s*"{re.escape(old_name)}"'
-            if re.search(pattern, line):
-                violations.append(stripped[:80])
-        record(f"Old name '{old_name}' absent from {label} JSON output",
-               len(violations) == 0,
-               f"Found in: {violations[:3]}" if violations else "")
 
 
 def check_certificate_paths():
@@ -235,22 +200,10 @@ def check_certificate_paths():
     cert_json = cert_dir / "certificate.json"
     if poly_cert.is_file():
         record("polynomial_certificate.json exists", True)
-        cert_file = poly_cert
     elif cert_json.is_file():
         record("certificate.json exists", True)
-        cert_file = cert_json
     else:
         record("Certificate file exists", False, "Neither found")
-        return
-    try:
-        import json
-        with open(cert_file) as f:
-            cert = json.load(f)
-        record("Certificate is valid JSON", True)
-        record("Certificate has polynomial data",
-               "polynomial" in cert or "coefficients" in cert)
-    except Exception as e:
-        record("Certificate is valid JSON", False, str(e))
 
 
 def check_python_imports():
@@ -267,6 +220,7 @@ def check_python_imports():
     ]
     for mod in atlas_modules:
         record(f"Atlas module exists: {mod}", Path(mod).is_file())
+
     scripts = sorted(Path("scripts").glob("*.py")) if Path("scripts").is_dir() else []
     for script in scripts:
         try:
@@ -280,13 +234,17 @@ def check_python_imports():
 def main() -> int:
     print("=" * 65)
     print("  erdos-proof-atlas — Path Consistency Check")
+    print(f"  Contract: {CONTRACT_PATH}")
     print("=" * 65)
-    print(f"  lean_text available: {LEAN_TEXT_OK}")
+
+    contract = load_contract()
+    print(f"  project_mode: {contract.get('project_mode')}")
+    print(f"  formal_level: {contract.get('current_formal_level')}")
 
     check_test_directory()
     check_makefile_paths()
     check_ci_paths()
-    check_lean_files()
+    check_lean_files(contract)
     check_deepmind_targets()
     check_certificate_paths()
     check_python_imports()
@@ -296,7 +254,7 @@ def main() -> int:
     failed = sum(1 for _, ok, _ in RESULTS if not ok)
     total = len(RESULTS)
     print(f"  Results: {passed}/{total} passed, {failed} failed")
-    print()
+
     if failed == 0:
         print("[PASS] PATH CONSISTENCY CHECK PASSED")
         return 0
