@@ -1,0 +1,27 @@
+?
+    ^z纉?  ?                  髨   ? d Z ddlmZ ddlZddlZddlmZmZ ddlm	Z	 ddl
+mZ e G d? d?      ?       Ze G d	? d
+?      ?       Z
+y)z.Certificate system with cryptographic hashing.?    )?annotationsN)?dataclass?field)?Path)?Optionalc                  蠛   ? e Zd ZU ded<   ded<   ded<   ded<   ded<   ded	<   ded
+<   ded<   ded<   ded
+<   ded<   ded<   dZded<   dZded<   dd?Zdd?Zdd?Zy)?PolynomialCertificate?str?polynomial_str?int?degree?variable?contentz	list[int]?coefficients?irreducible_status?irreducible_method?root_interval_lower?root_interval_upper?target_root_approx?residual?source? ?historical_note?SYMBOLICALLY_CERTIFIED?statusc           
+     驜  ? | j                   | j                  | j                  | j                  | j                  | j
+                  | j                  d?| j                  | j                  g| j                  | j                  | j                  | j                  | j                  d?S )N)r   ?method)?polynomialr
+   r   r   r   ?irreducible?root_interval?target_rootr   r   r   r   )r   r
+   r   r   r   r   r   r   r   r   r   r   r   r   ??selfs    鶦/workspace/erdos-proof-atlas/src/atlas/certification/certificate.py?to_dictzPolynomialCertificate.to_dict   s?   € ?"?1?1窽縖筟蠽Z譜c裋c?????J?J?.?A?A萒譓d袽d?e?&?:?:窪?T?T?U?#?6?6繢荕罬?????N?N衂^譠e裐e?g? 	g?    c                螵   ? t        j                  t        j                  | j	                  ?       d??      j                  ?       ?      j
+                  ?       S ?NT)?sort_keys??hashlib?sha256?json?dumpsr%   ?encode?hexdigestr"   s    r$   r,   zPolynomialCertificate.sha256#   ?   € ?弤墌渄焜檍??????H?O?O?Q?R?\?\?^?^r&   c                髺   ? | j                  ?       }| j                  ?       |d<   |j                  t        j                  |d??      ?       y ?N?certificate_hash?   )?indent?r%   r,   ?write_textr-   r.   ?r#   ?path?ds      r$   ?savezPolynomialCertificate.save&   ?   € ?廘塋婲??$?????????????≦?/?0r&   N??return?dict?r?   r
+   ?r:   r   r?   ?None)	?__name__?__module__?__qualname__?__annotations__r   r   r%   r,   r<   ? r&   r$   r	   r	   
+   sj   ? ???僈?僊?僉?????????????僊?僈?€O怱??*€F圕?*?g?_?1r&   r	   c                  筇   ? e Zd ZU ded<   ded<   ded<   ded<   ded	<   d
+ed<   ded
+<   ded<   ded<   ded<   ded<   ded<   ded<   dZded<   dZded<   dd?Zdd?Zdd?Zd d?Z	y)!?GaloisCertificater
+   ?polynomial_idr   r
+   ?boolr   zOptional[bool]?discriminant_positive?discriminant_is_squarez
+Optional[int]?discriminant_digitsz
+list[dict]?factorization_mod_primes?jordan_cycle_types?primitivity_evidence?group_claimr   ?radical_solvable?radical_solvability_sourcer   r   r   ?notesc                驲   ? | j                   dv rt        d| j                   ? d??      ?y )N)?THEOREM?FORMAL_PROOFz%GaloisCertificate cannot have status z. Use SYMBOLICALLY_CERTIFIED.)r   ?ValueErrorr"   s    r$   ?__post_init__zGaloisCertificate.__post_init__>   s.   € ????5?5??D繲荹羀繫蠶n?o?p?p? 6r&   c                骎  ? | j                   | j                  | j                  | j                  | j                  | j
+                  d?| j                  | j                  | j                  | j                  | j                  | j                  | j                  | j                  | j                  d?S )N)?positive?is_perfect_square?digits)
+r   r
+   r   ?discriminantrP   ?jordan_cycle_types_countrR   rS   r   rT   rU   r   rV   )rK   r
+   r   rM   rN   rO   rP   rQ   rR   rS   r   rT   rU   r   rV   r"   s    r$   r%   zGaloisCertificate.to_dictB   s?   € ?"?0?0窪縆筀蠿\譞h裍h?1?G?G衈b譤y裗y?/?C?C?!E?0?I?I?0?C?C?,?A?A?#?/?/????(?9?9?2?M?M???????	<? 		<r&   c                螵   ? t        j                  t        j                  | j	                  ?       d??      j                  ?       ?      j
+                  ?       S r(   r*   r"   s    r$   r,   zGaloisCertificate.sha256N   r1   r&   c                髺   ? | j                  ?       }| j                  ?       |d<   |j                  t        j                  |d??      ?       y r3   r7   r9   s      r$   r<   zGaloisCertificate.saveQ   r=   r&   N)r?   rC   r>   rA   rB   )
+rD   rE   rF   rG   r   rV   r[   r%   r,   r<   rH   r&   r$   rJ   rJ   ,   sw   ? ???僈???)?)?*?*?&?&?(?(???????僈?$?$?#?#?*€F圕?*?€E?僌?q?
+<?_?1r&   rJ   )?__doc__?__future__r   r+   r-   ?dataclassesr   r   ?pathlibr   ?typingr   r	   rJ   rH   r&   r$   ?<module>ri      sJ   ?? 4? "? ? (? ? ? ?1? 1? ?1養 ?'1? '1? ?'1r&   
