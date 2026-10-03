@@ -1,28 +1,0 @@
-?
-    ^z纉)	  ?                  蟛   ? d Z ddlmZ ddlZddlZddlZddlZddlZddlZddl	Z	ddl
-Z
-ddlmZm
-Z
- ddlmZ ddlmZ dd?Zd
-d?Ze G d	? d
-?      ?       Zdd?Zy)z(Provenance and reproducibility tracking.?    )?annotationsN)?dataclass?field)?Path)?Optionalc                 螽   ? 	 t        j                  g d?ddd??      } | j                  dk(  r| j                  j	                  ?       S dS # t
-        $ r Y yw xY w)N)?gitz	rev-parse?HEADT?   )?capture_output?text?timeoutr   ?UNKNOWN)?subprocess?run?returncode?stdout?strip?Exception)?rs    ?/workspace/erdos-proof-atlas/src/atlas/provenance/tracker.py?_git_commitr   
-   sQ   € ??廚塏?5纃蠶U衉`?a??$????4坬弜墄弤墌??C??C? ??鷖   侫A ?A ?	A?Ac                篪   ?? t        j                  ?       }t        | d?      5 ?t        ?fd?d?      D ]  }|j	                  |?       ? 	 d d d ?       |j                  ?       S # 1 sw Y   |j                  ?       S xY w)N?rbc                 ?   ?? ? j                  d?      S )Ni   )?read)?fs   €r   ?<lambda>z_sha256.<locals>.<lambda>   s
-   鴢 ??????    r   )?hashlib?sha256?open?iter?update?hexdigest)?path?h?chunkr   s      @r   ?_sha256r)      s^   鴢 ????€A?
-坉??楢??/??5圗?
-廐塇怳峅? 6? 
-? 
-????? 
-? 
-????鷖   ?A!?A9c                  鬄   ? e Zd ZU ded<   ded<   ded<   ded<   ded<   ded<   ded	<   ded
-<    ee??      Zded
-<   eddd??       Zdd?Z	dd?Z
-y)?ProvenanceRecord?str?run_id?problem_id?git_commit?timestamp_utc?python_version?os_info?int?seed?config_hash)?default_factory?dict?dependenciesNc                螃  ? |r|j                  ?       rt        |?      nd}i }dD ]  }	 t        |?      j                  ||<   ?  | t        t
-        j                  ?       ?      d d |t        ?       t        j                  dt        j                  ?       ?      t        j                  t        j                  ?       |||??      S # t        $ r d||<   Y 尗w xY w)NzN/A)?numpy?scipy?sympy?mpmath?NOT_INSTALLED?   z%Y-%m-%dT%H:%M:%SZ?r-   r.   r/   r0   r1   r2   r4   r5   r8   )?existsr)   ?__import__?__version__?ImportErrorr,   ?uuid?uuid4r   ?time?strftime?gmtime?sys?version?platform)?clsr.   r4   ?config_pathr5   ?deps?pkgs          r   ?createzProvenanceRecord.create&   s?   € ?9竗?P?P?R攇榢?*蠿]????5圕?
-,?&爏汷?7?7?怱?? 6? ?渄焜檍沴?+–≧?0竄訲_覶a?%???C腄荎罧肕?R?%??磝?H?H?J蠶U?*???? 	? ? 
-,?+?怱??
-,鷖   ?B??C?Cc           
-     笪   ? | j                   | j                  | j                  | j                  | j                  | j
-                  | j                  | j                  | j                  d?S )Nr@   r@   )?selfs    r   ?to_dictzProvenanceRecord.to_dict4   sN   € ??????萾???$?2?2繢譊W袲W???╠痠﹊纃譌V袴V?#?0?0?2? 	2r   c                髄   ? |j                  t        j                  | j                  ?       d??      ?       y )N?   )?indent)?write_text?json?dumpsrT   )rS   r&   s     r   ?savezProvenanceRecord.save:   s   € ????????????<?=r   )N)r.   r,   r4   r3   rN   zOptional[Path]?returnz'ProvenanceRecord')r\   r7   )r&   r   r\   ?None)?__name__?__module__?__qualname__?__annotations__r   r7   r8   ?classmethodrQ   rT   r[   ? r   r   r+   r+      sX   ? ?僈?僌?僌?????僉?
-僆???╰?4€L??4???? ???2?>r   r+   c                罄   ? t        | j                  d?      ?      D ?ci c]6  }|j                  ?       r$t        |j	                  | ?      ?      t        |?      ?? c}S c c}w )N?*)?sorted?rglob?is_filer,   ?relative_tor)   )?directoryr   s     r   ?build_sha256sumsrk   >   sX   € ?業烵橭–?0?1?B?1?癚穀盰碵? 
-???榠?(?)????5?1?B? B Bs   ?A)r\   r,   )r&   r   r\   r,   )rj   r   r\   zdict[str, str])?__doc__?__future__r   r    rY   ?osrL   r   rJ   rG   rE   ?dataclassesr   r   ?pathlibr   ?typingr   r   r)   r+   rk   rc   r   r   ?<module>rr      sJ   ?? .? "? ?? ?? ?? ?? (? ? ??? ? >?  >? ? >鬎Br   
