@@ -30,33 +30,33 @@ def strip_lean_comments(text: str) -> str:
     while i < n:
         if depth == 0:
             # Check for block comment start /- (includes /-- doc comments)
-            if text[i:i+2] == '/-':
+            if text[i:i+2] == "/-":
                 depth += 1
                 i += 2
-                result.append(' ')  # preserve spacing
+                result.append(" ")  # preserve spacing
             # Check for single-line comment --
-            elif text[i:i+2] == '--':
+            elif text[i:i+2] == "--":
                 # Skip to end of line, preserve the newline
-                while i < n and text[i] != '\n':
+                while i < n and text[i] != "\n":
                     i += 1
             else:
                 result.append(text[i])
                 i += 1
         else:
             # Inside block comment: look for -/ (close) or /- (nested open)
-            if text[i:i+2] == '-/':
+            if text[i:i+2] == "-/":
                 depth -= 1
                 i += 2
-            elif text[i:i+2] == '/-':
+            elif text[i:i+2] == "/-":
                 depth += 1
                 i += 2
             else:
                 # Preserve newlines to keep line numbers meaningful
-                if text[i] == '\n':
-                    result.append('\n')
+                if text[i] == "\n":
+                    result.append("\n")
                 i += 1
 
-    return ''.join(result)
+    return "".join(result)
 
 
 def lean_file_contains(filepath: Path, pattern: str, strip_comments: bool = True) -> bool:
@@ -106,7 +106,7 @@ def lean_file_has_trivial_true(filepath: Path) -> bool:
     return "→ True" in content or "-> True" in content
 
 
-def lean_file_has_float_in_theorem(filepath: Path) -> list[str]:
+def lean_file_has_float_in_theorem(filepath: Path) -> list:
     """
     Find theorem/def lines containing 'Float' (after stripping all comments).
     Returns list of offending lines.
@@ -125,7 +125,7 @@ def lean_file_has_float_in_theorem(filepath: Path) -> list[str]:
     return violations
 
 
-def lean_files_with_trivial_true(directory: Path) -> list[str]:
+def lean_files_with_trivial_true(directory: Path) -> list:
     """
     Find all .lean files in directory that have '→ True' in actual code.
     Strips all comments before checking.
@@ -139,7 +139,7 @@ def lean_files_with_trivial_true(directory: Path) -> list[str]:
     return violations
 
 
-def find_sorry_in_lean_files(directory: Path) -> list[tuple[str, int, str]]:
+def find_sorry_in_lean_files(directory: Path) -> list:
     """
     Find 'sorry' occurrences in .lean files, excluding all comment lines.
     Strips both -- and /- -/ block comments.
@@ -156,7 +156,6 @@ def find_sorry_in_lean_files(directory: Path) -> list[tuple[str, int, str]]:
         raw_lines = raw.splitlines()
         stripped_lines = stripped.splitlines()
 
-        # Pad to same length if block comment removal changed line count
         min_len = min(len(raw_lines), len(stripped_lines))
         for lineno in range(min_len):
             if "sorry" in stripped_lines[lineno]:
