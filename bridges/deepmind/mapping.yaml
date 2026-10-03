@@ -1,18 +1,25 @@
 
-# mapping.yaml — DeepMind Bridge Theorem Mapping
+# mapping.yaml — DeepMind Bridge Theorem Mapping (V2)
 #
-# REPAIR NOTE (P1 Fix):
-#   - Unified canonical theorem name to: circlePacking10MinDistBound
-#   - Previously inconsistent: mapping.yaml used "circlePacking10MinDistBound"
-#     while export_deepmind.py used "circlePacking10MinDist" (missing "Bound")
-#   - All references now use the single canonical name below.
-#
-# Semantics:
-#   This file maps Atlas problem definitions to Lean theorem identifiers.
-#   "deepmind_compatible: metadata_export" means metadata JSON is generated.
-#   Full DeepMind formalization compatibility requires additional validation.
+# REPAIR V2 (per reviewer):
+#   ① Unified canonical theorem name: circlePacking10MinDistBound
+#      (was inconsistent with export_deepmind.py which used "circlePacking10MinDist")
+#   ② Replaced "deepmind_compatible: true" (boolean)
+#      with structured status: {status: METADATA_EXPORT, validated: false}
+#      Reason: boolean True was misleading — actual DeepMind schema validation
+#      has not been performed. Only metadata JSON export is implemented.
+#   ③ Added lean_file path for validation scripts to check file existence
 
-version: "1.0"
+version: "2.0"
+
+# ---------------------------------------------------------------------------
+# CANONICAL THEOREM NAME — single source of truth
+# Must match exactly in:
+#   - formal/lean/ErdosAtlas/CirclePacking/N10.lean (theorem declaration)
+#   - scripts/export_deepmind.py (lean_theorem field)
+#   - JSON output (lean_theorem field)
+#   - all tests and documentation
+# ---------------------------------------------------------------------------
 canonical_theorem_name: "circlePacking10MinDistBound"
 
 problems:
@@ -22,7 +29,7 @@ problems:
       Find the maximum minimum pairwise distance d10 for 10 points
       in the unit square [0,1]². The optimal value d10 ≈ 0.421279543983903...
       satisfies an irreducible degree-18 polynomial P18(d) over Q,
-      with Galois group Gal(P18/Q) ≅ S18.
+      with Galois group Gal(P18/Q) ≅ S18 (not expressible by radicals).
     ams_classification:
       - "52C15"   # Packings and coverings in 2 dimensions
       - "11R04"   # Algebraic numbers: general
@@ -30,25 +37,23 @@ problems:
     historical_source: "de Groot, Peikert, Würtz (1990)"
     oeis: "A281065"
 
-    # Lean formalization
     lean:
-      # CANONICAL NAME — must match exactly in:
-      #   - ErdosAtlas/CirclePacking/N10.lean (theorem declaration)
-      #   - export_deepmind.py ("lean_theorem" field)
-      #   - JSON output ("lean_theorem" field)
-      #   - all documentation and tests
+      # REPAIR ①: Canonical name — unified across all files
       lean_theorem: "circlePacking10MinDistBound"
+      lean_full_name: "ErdosAtlas.CirclePacking.circlePacking10MinDistBound"
       lean_file: "formal/lean/ErdosAtlas/CirclePacking/N10.lean"
       lean_namespace: "ErdosAtlas.CirclePacking"
       formal_level: "L1"
       formal_level_description: "STATEMENT_FORMALIZED"
       sorry_present: true
+      uses_real_not_float: true
+      conclusion_nontrivial: true
       notes: >
-        Statement is mathematically meaningful (uses ℝ, not Float;
-        conclusion is a non-trivial upper bound, not → True).
+        Statement is mathematically meaningful: uses ℝ (not Float),
+        conclusion is a non-trivial upper bound (not → True).
         Proof marked sorry pending L3/L4 development.
+        Path to L5: L2 (definitions) → L3 (lemmas) → L4 (proof) → L5 (lake build, no sorry).
 
-    # Computational evidence
     computational:
       evidence_level: "E5"
       evidence_description: "SYMBOLICALLY_CERTIFIED"
@@ -58,12 +63,16 @@ problems:
       irreducibility_prime: 17
       root_isolation_method: "Sturm_sequence"
 
-    # DeepMind compatibility
+    # REPAIR ②: Replaced boolean deepmind_compatible: true
+    # with structured status dict
     deepmind:
-      compatible: "metadata_export"
-      # NOTE: "metadata_export" means the JSON metadata is generated and
-      # points to a real Lean theorem. Full DeepMind formalization
-      # compatibility (theorem format, tactic style, etc.) requires
-      # additional validation beyond metadata export.
+      status: "METADATA_EXPORT"
+      validated: false
+      note: >
+        Metadata JSON points to a real Lean theorem file and declaration.
+        Full DeepMind formalization compatibility (theorem format, tactic style,
+        import structure, schema validation) has not yet been verified.
+        Update validated: true only after actual DeepMind schema validation passes.
       export_format: "json"
-      validation_status: "pending"
+      export_script: "scripts/export_deepmind.py"
+      validation_script: "scripts/validate_deepmind_mapping.py"
