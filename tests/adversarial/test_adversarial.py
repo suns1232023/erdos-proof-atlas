@@ -182,4 +182,3 @@ class TestDeepMindBridgeConsistency:
         """export_deepmind.py must use the canonical theorem name."""
         export_name = self.CANONICAL_THEOREM_NAME
         assert export_name == self.CANONICAL_THEOREM_NAME
-
