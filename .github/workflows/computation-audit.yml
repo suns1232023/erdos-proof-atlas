@@ -1,0 +1,27 @@
+name: Computational Audit
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[symbolic,dev]"
+      - run: python scripts/run_problem.py circle-packing-square --n 10 --restarts 50
+      - run: python scripts/verify_result.py results/latest
+      - run: python scripts/build_certificate.py
+      - run: python scripts/atlas_audit.py
+      - run: python scripts/generate_report.py
+      - run: python scripts/export_deepmind.py
+      - run: python scripts/build_manifest.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-results-${{ github.run_number }}
+          path: results/latest/
