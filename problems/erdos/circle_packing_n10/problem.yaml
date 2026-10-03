@@ -1,0 +1,36 @@
+id: circle-packing-square-n10
+version: "0.1"
+description: >
+  Pack 10 equal circles in a unit square to maximize the minimum pairwise distance.
+  Historical result: de Groot, Peikert & Würtz (1990).
+
+domain:
+  type: continuous_discrete_geometry
+  ams: [52]
+
+objective:
+  type: maximize
+  expression: minimum_pairwise_distance
+
+constraints:
+  container: unit_square
+  n_points: 10
+  dimension: 2
+
+evidence_target:
+  computational: E5
+  formal: L5
+
+literature:
+  - title: "The optimal packing of 10 equal circles in a square"
+    authors: ["de Groot, C.", "Peikert, R.", "Würtz, D."]
+    year: 1990
+    source_type: COMPUTATIONAL_RECORD
+  - title: "Packomania"
+    authors: ["Specht, E."]
+    year: 2022
+    url: "http://www.packomania.com"
+    source_type: DATASET
+  - title: "A281065"
+    url: "https://oeis.org/A281065"
+    source_type: OEIS
