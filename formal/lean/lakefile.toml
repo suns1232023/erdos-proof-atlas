@@ -1,11 +1,36 @@
+
+-- lakefile.toml for erdos-proof-atlas
+-- Lean 4 + mathlib project for formal verification of square packing results.
+--
+-- REPAIR NOTE (P0 Fix):
+--   - Added [[require]] block for mathlib (was missing in original)
+--   - Created Main.lean (was declared but missing)
+--   - Established ErdosAtlas library module structure
+--
+-- To initialize after cloning:
+--   cd formal/lean
+--   lake update          # resolves mathlib, generates lake-manifest.json
+--   lake exe cache get   # downloads prebuilt mathlib cache
+--   lake build           # compiles the project
+
 [package]
 name = "ErdosAtlas"
 version = "0.1.0"
 defaultTargets = ["ErdosAtlas"]
 
+-- Pinned mathlib dependency (REQUIRED — do not remove)
+-- Run `lake update` to regenerate lake-manifest.json after changing rev.
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.14.0"
+
+-- Main library: ErdosAtlas
 [[lean_lib]]
 name = "ErdosAtlas"
+roots = ["ErdosAtlas"]
 
+-- Main executable (requires Main.lean to exist)
 [[lean_exe]]
 name = "Main"
 root = "Main"
