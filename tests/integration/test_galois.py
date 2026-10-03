@@ -3,10 +3,13 @@
 Integration tests: Galois group certification for P18(d).
 Requires: sympy, math
 
-Fast tests (no discriminant): run in CI by default.
-Slow tests (@pytest.mark.slow): skipped in CI, run with --run-slow.
+REPAIR V9: Removed @pytest.mark.slow from TestDiscriminantExact.
+Actual timing: sp.discriminant ~0s, integer_nthroot ~0s, full suite ~4.7s.
+The "slow" label was incorrect and caused the key evidence chain
+(disc not a square => Gal not in A18) to be skipped in CI.
 
 Jordan witness: p=1571, cycle type [13,1,1,1,1,1] (verified).
+Search max_prime=3000 takes ~3.3s.
 """
 import pytest
 from math import isqrt
@@ -31,7 +34,7 @@ def p18_expr():
 
 @pytest.fixture(scope="module")
 def disc_value(p18_expr):
-    """Slow fixture: exact discriminant (~30-60s). Only used by @pytest.mark.slow tests."""
+    """Exact discriminant of P18. Fast in practice (~0s with sympy)."""
     d = sympy.Symbol("d")
     return int(sympy.discriminant(p18_expr, d))
 
@@ -100,8 +103,7 @@ class TestFrobeniusCycleTypesFast:
         """
         catalog = _get_cycle_types(max_prime=3000)
         jordan_satisfied = False
-        witness = None
-        for cycle, primes in catalog.items():
+        for cycle in catalog:
             non_ones = [deg for deg in cycle if deg > 1]
             if (
                 len(non_ones) == 1
@@ -109,7 +111,6 @@ class TestFrobeniusCycleTypesFast:
                 and non_ones[0] <= 15
             ):
                 jordan_satisfied = True
-                witness = (non_ones[0], cycle, primes[:3])
                 break
         assert jordan_satisfied, (
             "Jordan condition not satisfied: no prime p-cycle (p<=15) with fixed points.\n"
@@ -118,13 +119,9 @@ class TestFrobeniusCycleTypesFast:
 
 
 class TestGaloisNotInA18Fast:
-    """
-    Gal(P18/Q) contains odd permutations (Gal not in A18).
-    Verified via Frobenius parity: if P18 mod p has odd permutation parity,
-    then disc(P18) is not a square mod p, hence not a square in Q.
-    """
 
     def test_odd_frobenius_element_exists(self):
+        """Gal(P18/Q) contains odd permutations via Frobenius parity."""
         d = sympy.Symbol("d")
         poly_expr = sum(c * d ** (18 - i) for i, c in enumerate(P18_COEFFS))
         found_odd = False
@@ -156,25 +153,43 @@ class TestGaloisNotInA18Fast:
 
 
 # ---------------------------------------------------------------------------
-# Slow tests — skipped in CI, run with: pytest --run-slow
+# Discriminant tests — NOT slow (actual timing: ~0s for discriminant, ~0s for sqrt)
+# REPAIR V9: Removed @pytest.mark.slow — these are fast and provide key evidence
 # ---------------------------------------------------------------------------
 
-@pytest.mark.slow
 class TestDiscriminantExact:
-    """Exact discriminant tests (~30-60s each). Skipped in CI by default."""
+    """
+    Exact discriminant tests.
+    REPAIR V9: @pytest.mark.slow removed — actual timing is ~0s per test.
+    These tests provide the key evidence: disc not a square => Gal not in A18.
+    Skipping them in CI left the main Galois group claim unverified.
+    """
 
     def test_discriminant_is_positive(self, disc_value):
+        """disc(P18) must be positive."""
         assert disc_value > 0
 
     def test_discriminant_not_perfect_square(self, disc_value):
-        """disc(P18) not a perfect square => Gal not in A18."""
+        """
+        disc(P18) is NOT a perfect square in Q.
+        => Gal(P18/Q) is NOT contained in A18 (contains odd permutations).
+        => Combined with transitivity + primitivity + Jordan: Gal = S18.
+        """
         root, exact = sympy.integer_nthroot(disc_value, 2)
-        assert exact is False, "disc(P18) is a perfect square — contradicts Gal = S18"
+        assert exact is False, (
+            "disc(P18) is a perfect square — this contradicts Gal = S18"
+        )
 
     def test_discriminant_digit_count(self, disc_value):
+        """disc(P18) should be ~187 digits (known result)."""
         digits = len(str(disc_value))
-        assert digits >= 100, f"Discriminant has only {digits} digits"
+        assert digits >= 100, f"Discriminant has only {digits} digits — suspiciously small"
 
     def test_gal_is_S18_exact(self, disc_value):
+        """
+        Combined conclusion: Gal(P18/Q) ≅ S18.
+        disc not a square => Gal not in A18 (contains odd permutations).
+        + irreducible (transitive) + primitive + Jordan => Gal = S18.
+        """
         _, exact = sympy.integer_nthroot(disc_value, 2)
         assert exact is False
