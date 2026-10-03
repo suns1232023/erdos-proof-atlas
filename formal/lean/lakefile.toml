@@ -1,3 +1,5 @@
+name = "ErdosAtlas"
+
 # lakefile.toml — ErdosAtlas Lean 4 project
 #
 # REPAIR V2 (Lean Foundation Fix):
