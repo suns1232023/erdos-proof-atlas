@@ -1,62 +1,0 @@
-?
-    ^z纉?  ?                  舐   ? d Z ddlmZ ddlZddlmZmZ ddlm	Z	 e G d? d?      ?       Z
-e G d? d	?      ?       Ze G d
-? d?      ?       Zdd?Z
-ddd
-?Zddd?Zddd?Zddd?Zy)u?   
-Circle packing geometry 鈥?independent of the optimizer.
-
-Historical note: The degree-18 minimal polynomial for N=10 was first
-established by de Groot, Peikert & W眉rtz (1990). This module provides
-independent reproduction, NOT a new discovery.
-?    )?annotationsN)?dataclass?field)?Optionalc                  ?   ? e Zd ZU ded<   ded<   dZded<   d
-d?Zy	)?PackingConfiguration?int?n_points?np.ndarray?coordinates?unit_square?str?containerc                蟋   ? | j                   j                  | j                  dfk7  r/t        d| j                  ? d| j                   j                  ? ??      ?y )N?   zExpected shape (z
-, 2), got )r   ?shaper
-   ?ValueError??selfs    鶤/workspace/erdos-proof-atlas/src/atlas/geometry/circle_packing.py?__post_init__z"PackingConfiguration.__post_init__   sN   € ????!?!燿癚?7?7??/????竕?譏Y袸Y譏_袸_蠬`?a?b?b? 8?    N)?return?None)?__name__?__module__?__qualname__?__annotations__r   r   ? r   r   r   r      s   ? ?僊???"€I坰?"?cr   r   c                  ?   ? e Zd ZU ded<   ded<   ded<   ded<   d	d?Zy)
-?ContactGraph?list[tuple[int, int]]?contacts?near_contacts?float?tolerance?min_distancec                髨   ? | j                   | j                  | j                  | j                  t	        | j                   ?      d?S )N)r#   r$   r&   r'   ?n_contacts)r#   r$   r&   r'   ?lenr   s    r   ?to_dictzContactGraph.to_dict!   s8   € ????!?/?/???? ?-?-?榙焟檓?,?
-? 	
-r   N?r   ?dict)r   r   r   r   r+   r   r   r   r!   r!      s   ? ?#?#?(?(?????
-r   r!   c                  骮   ? e Zd ZU ded<   ded<   ded<   ded<   ded	<   ded
-<   dZded
-<   dd?Zy)?VerificationResult?bool?passedr%   r'   ?boundary_feasiblez	list[str]?constraint_violationsr!   ?contact_graph?objective_value? r   ?notesc                缶   ? | j                   | j                  | j                  | j                  | j                  j                  ?       | j                  | j                  d?S )N)r1   r'   r2   r3   r4   r5   r7   )r1   r'   r2   r3   r4   r+   r5   r7   r   s    r   r+   zVerificationResult.to_dict5   sP   € ?梜慿? ?-?-?%?7?7?)?????!?/?/?7?7?9?#?3?3?梈慫?
-? 	
-r   Nr,   )r   r   r   r   r7   r+   r   r   r   r/   r/   +   s3   ? ?僉?????$?$?????€E?僌?	
-r   r/   c           	     ?  ? t        | ?      }|dk  rt        d?      S t        d?      }t        |?      D ]O  }t        |dz   |?      D ];  }t        t        j                  j                  | |   | |   z
-  ?      ?      }||k  s?|}? 孮 |S )Nr   ?inf?   )r*   r%   ?range?np?linalg?norm)?coords?n?min_d?i?j?ds         r   ?compute_min_distancerF   A   s~   € ?團?€A??倁?怳媩???婰€E??嶺??恞?憉榓?圓?攂梚慽梟憂燰ˋ????:?;?<圓??媦??? !? ? €Lr   c                篾   ? g }|dk(  ret        | ?      D ]W  \  }\  }}|| k  s|d|z   kD  r|j                  d|? d|d?d??       || k  s	|d|z   kD  s?|j                  d|? d|d?d??       孻 t        |?      dk(  |fS )	Nr
-   g      ?zPoint z: x=z.6fz outside [0,1]z: y=r   )?enumerate?appendr*   )r@   r   ?tol?violationsrC   ?x?ys          r   ?check_boundary_constraintsrN   N   s?   € ?€J?怣?!?"??*塈圓塿???怌?妜?榮燬檡???!?!燜??═?癈???G?H?怌?妜?榮燬檡???!?!燜??═?癈???G?H? +? 坺?榓???+?+r   c           	     髚  ? t        | ?      }g g }}t        |?      D ]?  }t        |dz   |?      D ]}  }t        t        j                  j                  | |   | |   z
-  ?      ?      }	t
-        |	|z
-  ?      |k  r|j                  ||f?       孻t
-        |	|z
-  ?      |k  s宬|j                  ||f?       ? 寭 t        ||||??      S )Nr;   )r#   r$   r&   r'   )	r*   r<   r%   r=   r>   r?   ?absrI   r!   )
-r@   r'   ?contact_tol?near_tolrA   r#   r$   rC   rD   rE   s
-             r   ?build_contact_graphrS   Y   s?   € ?團?€A? ?坢€H??嶺??恞?憉榓?圓?攂梚慽梟憂燰ˋ????:?;?<圓??恷?#?$??3????燗??'?怮??%?&??2??$?$燼?燰?,? !? ? ??蠷]衛x?y?yr   c                ?  ? | j                   }g }t        |?      }t        |?      D ]L  }t        |dz   |?      D ]8  }t        j                  ||   ||   d??      s?|j                  d|? d|? ??       ? 孨 t
-        |?      }t        || j                  ?      \  }}	|j                  |	?       t        |||?      }
-t        |||
-j                  ?      \  }}|j                  |?       t        |?      dk(  xr |xr |}
-t        |
-||||
-|??      S )u@   Independent verification 鈥?separate code paths from optimizer.r;   g唤踪遼?)?atolzDuplicate coordinates: points z and r   )r1   r'   r2   r3   r4   r5   )r   r*   r<   r=   ?allcloserI   rF   rN   r   ?extendrS   ?_check_noncontactr#   r/   )?configrQ   r@   rK   rA   rC   rD   rB   ?boundary_ok?bv?cg?nc_ok?ncvr1   s                 r   ?evaluate_configurationr_   f   s	  € ???€F?€J?團?€A??嶺??恞?憉榓?圓?弡墈???爁≦癳?<??!?!?B??繳???N?O? !? ? 
-!??(€E?0???I?I?J丱€K????恇??榁燯↘?8€B?"??????>丣€E????恈???媉??!?;爇?;癳€F?燰?蠸^?>萣衎g?i? ir   c           
-     骦  ? t        | ?      }t        |?      }g }t        |?      D ]v  }t        |dz   |?      D ]b  }||f|vs?t        t        j
-                  j
-                  | |   | |   z
-  ?      ?      }	|	||z
-  k  s孌|j                  d|? d|? d|	d?d|d???       宒 寈 t        |?      dk(  |fS )Nr;   zNon-contact pair (?,z): d=z.8fz	 < d_min=r   )r*   ?setr<   r%   r=   r>   r?   rI   )
-r@   r'   ?contact_pairsrJ   rA   ?contact_setrK   rC   rD   rE   s
-             r   rX   rX   z   s?   € ?團?€A?恗?$€K?€J??嶺??恞?憉榓?圓??坴榌?(?????????癡窤盰?>???@??恷燾?)?)??%?%?:??窺竡竎?纐?纆萗蠾c衐g蠽h?i?j? !? ? 坺?榓???+?+r   )r@   r   r   r%   )r
-   g曋&?.>)r@   r   r   r   rJ   r%   r   ?tuple[bool, list[str]])?C脞6?g褚MbP?)
-r@   r   r'   r%   rQ   r%   rR   r%   r   r!   )rf   )rY   r   rQ   r%   r   r/   )g嶍禒髌?)
-r@   r   r'   r%   rc   r"   rJ   r%   r   re   )?__doc__?__future__r   ?numpyr=   ?dataclassesr   r   ?typingr   r   r!   r/   rF   rN   rS   r_   rX   r   r   r   ?<module>rl      s?   ??? #? ? (? ? ?c? c? ?c? ?
-
-? 
-
-? ?
-
-? ?
-? 
-? ?
-?
-?,?
-z?i?
-,r   
