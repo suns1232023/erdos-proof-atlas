@@ -1,0 +1,80 @@
+?
+    蟴纉q  ?                   笫  ? d Z ddlZddlmc mZ ddlZddlZ	ddl
+Z
+ddlmZ e
+j                  j                  d e ee?      j"                  j"                  j"                  dz  ?      ?       ddlmZmZ  e	j*                  ddgdd	gdd	gd	d
+gddgdd
+gddgd	dgdd	gddgg
+?      ZdZdZej2                  j5                  dd e	j*                  ddgd	d	gg?       e e	j8                  d?      ?      dfd e	j*                  ddgd	dgdd	gd	d	gg?      d	dfd e	j*                   ed?      D ? ?cg c]  }  ed?      D ]  }| dz  |dz  g?? ? c}} ?      ddfg?      d? ?       Zd? Zyc c}} w )z+Regression tests for known reference cases.?    N)?Path?src)?PackingConfiguration?evaluate_configurationg嘅lX?g        gi摄i?g      ?g"
+给%,?g础???g:塻??gX鞀t??g5蓈[u?gD??嗏?gm/??g鴩眜>鲒?g@烒y>鲒?g駂銏跌?zn,coords,expected_d,tol?   g嶍禒髌??   ?   ?   g      ?c           	      髮  ? t        | |?      }t        |?      }|j                  }|syddt        j                  ?       v st        j                  |?      rt        j                  |?      ndt        j                  |?      d?z  }t        t        j                  |?      ?      ?d }|j                  }||z
+  }	t        |	?      }
+|
+|k  }|?sxt        j                  d|fd|
+|f?      dt        j                  ?       v st        j                  t        ?      rt        j                  t        ?      nddt        j                  ?       v st        j                  |?      rt        j                  |?      ndt        j                  |?      dt        j                  ?       v st        j                  |?      rt        j                  |?      ndt        j                  |
+?      dt        j                  ?       v st        j                  |?      rt        j                  |?      ndd	?z  }d
+d|iz  }
+t        t        j                  |
+?      ?      ?d x}x}	x}
+}y )N?assert %(py2)s
+{%(py2)s = %(py0)s.passed
+}?vr??py0?py2??<?z]%(py7)s
+{%(py7)s = %(py0)s((%(py3)s
+{%(py3)s = %(py1)s.min_distance
+} - %(py4)s))
+} < %(py9)s?abs?expected_d?tol?r   ?py1?py3?py4?py7?py9?assert %(py11)s?py11)
+r   r   ?passed?@py_builtins?locals?@pytest_ar?_should_repr_global_name?_saferepr?AssertionError?_format_explanation?min_distancer   ?_call_reprcompare)?n?coordsr   r   ?configr
+   ?@py_assert1?@py_format3?@py_assert2?@py_assert5?@py_assert6?@py_assert8?@py_format10?@py_format12s                 鶣/workspace/erdos-proof-atlas/tests/regression/test_regression.py?test_small_casesr5      s?  € ? "?燰?,€F???'€B?
+????????????????????????????2???+?2??+?,?2?,╯?2?2?2?2?,╯?2?2?2?2?2?2??2?2?2??2?2?2?2?2?2坮?2?2?2坮?2?2?2??2?2?2?2?2?2??2?2?2??2?2?2?,?2?2?2?2?2?2╯?2?2?2╯?2?2?2?2?2?2?2?2?    c            	      髒  ? t        dt        ?      } t        | ?      }|j                  }|syddt	        j
+                  ?       v st
+        j                  |?      rt
+        j                  |?      ndt
+        j                  |?      d?z  }t        t
+        j                  |?      ?      ?d}|j                  }|t        z
+  }t        |?      }|t        k  }|?s宼
+        j                  d|fd|t        f?      dt	        j
+                  ?       v st
+        j                  t        ?      rt
+        j                  t        ?      nddt	        j
+                  ?       v st
+        j                  |?      rt
+        j                  |?      ndt
+        j                  |?      d	t	        j
+                  ?       v st
+        j                  t        ?      rt
+        j                  t        ?      nd	t
+        j                  |?      d
+t	        j
+                  ?       v st
+        j                  t        ?      rt
+        j                  t        ?      nd
+d?z  }dd
+|iz  }	t        t
+        j                  |	?      ?      ?dx}x}x}}|j                   }|j"                  }
+t%        |
+?      }d}||k(  }|?st
+        j                  d|fd||f?      dt	        j
+                  ?       v st
+        j                  t$        ?      rt
+        j                  t$        ?      nddt	        j
+                  ?       v st
+        j                  |?      rt
+        j                  |?      ndt
+        j                  |?      t
+        j                  |
+?      t
+        j                  |?      t
+        j                  |?      d?z  }dd|iz  }
+t        t
+        j                  |
+?      ?      ?dx}x}
+x}x}}y)uE   HISTORICAL BENCHMARK 鈥?not a new discovery. de Groot et al. (1990).?   r   r
+   r   Nr   r   r   ?N10_D?N10_TOLr   r   r   ?   )?==)zr%(py7)s
+{%(py7)s = %(py0)s(%(py5)s
+{%(py5)s = %(py3)s
+{%(py3)s = %(py1)s.contact_graph
+}.contacts
+})
+} == %(py10)s?len)r   r   r   ?py5r   ?py10zassert %(py12)s?py12)r   ?N10_COORDSr   r   r    r!   r"   r#   r$   r%   r&   r'   r9   r   r:   r(   ?contact_graph?contactsr=   )r+   r
+   r,   r-   r.   r/   r0   r1   r2   r3   ?@py_assert4?@py_assert9?@py_format11?@py_format13s                 r4   ?test_n10_historical_benchmarkrH      s?  € ?!??1€F???'€B?
+????????????????????????????1???&?1??&?'?1?'??1?1?1?1?'??1?1?1?1?1?1??1?1?1??1?1?1?1?1?1坮?1?1?1坮?1?1?1??1?1?1?1?1?1??1?1?1??1?1?1?'?1?1?1?1?1?1??1?1?1??1?1?1?1?1?1?1????/??(?(?/??(?)?/≧?/?)≧?/?/?/?/?)≧?/?/?/?/?/?/??/?/?/??/?/?/?/?/?/坮?/?/?/坮?/?/?/??/?/?/?(?/?/?/?)?/?/?/≧?/?/?/?/?/?/?/?/r6   ) ?__doc__?builtinsr    ?_pytest.assertion.rewrite?assertion?rewriter"   ?pytest?numpy?np?sys?pathlibr   ?path?insert?str?__file__?parent?atlas.geometry.circle_packingr   r   ?arrayrA   r9   r:   ?mark?parametrize?float?sqrt?ranger5   rH   )?i?js   00r4   ?<module>ra      s?  ?? 1?  ? ? ? ? ? ??????憈楬搤?,?,?3?3?:?:窾?B?C? D? V?圧廥塜???榋??3癦??K???榋??3癦??K???榋??3癦??K????? €
+? 	€?€??????2??????恇??榖??"?#???????6??=??????恇??榖??燽??╞??2?3癝??????????@?眜窺秞??怮?恞?憇?皒?燲?@?A???M?5? ?3??3?0 As   ?E
