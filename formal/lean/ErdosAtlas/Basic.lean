@@ -1,5 +1,6 @@
 
--- ErdosAtlas/Basic.lean — Root module for ErdosAtlas library
+-- ErdosAtlas/Basic.lean 
+— Root module for ErdosAtlas library
 --
 -- REPAIR V3 (conflict fix):
 --   PROBLEM: Previously imported both ErdosAtlas.Geometry.Point (structure)
@@ -16,11 +17,10 @@
 --     CirclePacking.Certificate → uses Definitions
 --     Problems.SquarePacking → uses Definitions
 --     Audit.Axioms → uses N10 (imported last to avoid cycles)
- 
+
 import ErdosAtlas.Geometry.Basic
 import ErdosAtlas.CirclePacking.Definitions
 import ErdosAtlas.CirclePacking.N10
 import ErdosAtlas.CirclePacking.Certificate
 import ErdosAtlas.Problems.SquarePacking
 import ErdosAtlas.Audit.Axioms
- 
