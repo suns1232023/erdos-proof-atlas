@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Sun
+    given-names: Scott
+    orcid: "https://orcid.org/0009-0002-1095-6228"
+title: "Erdős Proof Atlas: Computational Discovery, Exact Certification, and Lean-Checked Mathematics"
+version: 0.1.0
+date-released: 2026-08-14
+url: "https://github.com/suns1232023/erdos-proof-atlas"
