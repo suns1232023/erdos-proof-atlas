@@ -1,41 +1,0 @@
-?
-    ^z纉4  ?                  髳   ? d Z ddlmZ ddlZddlZddlZddlZddlZddl	m
-Z
-mZ ddlm
-Z
- ddlmZmZ e
- G d? d?      ?       Zd
-dd	?Zy)z4Multistart SLSQP search. Status is always NUMERICAL.?    )?annotationsN)?dataclass?field)?minimize)?pdist?cdistc                  髚   ? e Zd ZU ded<   ded<   ded<   ded<   ded	<   ded
-<   ded<   ded
-<   dZded<   dd?Zdd?Zy)?SearchResult?str?problem_id?run_id?float?objectivezlist[list[float]]?coordinates?int?seed?algorithm?runtime_seconds?dict?software_versions?NUMERICAL?statusc                ?   ? | j                   dk7  rt        d?      ?y )Nr   z:SearchResult.status must be NUMERICAL. Never auto-upgrade.)r   ?ValueError??selfs    ?/workspace/erdos-proof-atlas/src/atlas/search/multistart.py?__post_init__zSearchResult.__post_init__   s   € ?????%??Y?Z?Z? &?    c           
-     笪   ? | j                   | j                  | j                  | j                  | j                  | j
-                  | j                  | j                  | j                  d?S )N?r   r
-   r   r   r   r   r   r   r   r!   r   s    r   ?to_dictzSearchResult.to_dict   sR   € ?"無檕???蠸W譙a裇a?#?/?/???蠶U譗_裃_?'?7?7萪譔d袾d????'? 	'r   N)?return?None)r#   r   )?__name__?__module__?__qualname__?__annotations__r   r   r"   ? r   r   r
-   r
-      sC   ? ?僌?僈???"?"?
-僆?僋?????€F圕??[?'r   r
-   c                驜  ????? t         j                  j                  |?      ?t        t	        j
-                  ?       ?      d d }t
-        j                  ?       }d\  }}dgd?z  z  dt        j                  d?      fgz   }	t        j                  ?d?      \  ?????fd?}
-??fd	?}t        |?      D ?]  }t
-        j                  ?       |z
-  |kD  r n? |?       }
-t        t        |
-?      j                  ?       ?      d
-z  }t         j                  |
-j                  ?       |f   }	 t        d? |d|	d
-|
-d?dddd???      }|j                   d d j#                  ?d?      }t        t        |?      j                  ?       ?      } |
-|j                   ?      j                  ?       dk\  r||kD  r||j%                  ?       }}?? t)        | |||?|j+                  ?       ng |dt
-        j                  ?       |z
-  t,        j.                  t         j0                  d?d??      S # t&        $ r Y ?宮w xY w)N?   )g      鹂N)?        ?      ??   r,   g       @?   c                髱   ?? | d d j                  ?d?      }| d   }|?   |?   z
-  }t        j                  ||z  d??      ||z  z
-  S )N?r.   r/   ??axis)?reshape?np?sum)?z?pts?t?v?ii?jj?n_pointss       €€€r   ?constraints_fnz-run_multistart_search.<locals>.constraints_fn*   sR   鴢 ???坒弉塶榅爍?)??
-坆塃???塆恈?慻???弙塿恆?慹??$爍??,?,r   c                 箬  ?? t        j                  ddgddgddgddgg?      } | ?j                  d?         j                  ?       g}t	        |?      ?k  r媡        j
-                  ?j
-                  d?      | g?      }t        |t        j                  |?      ?      j                  d??      }|j                  |t        j                  |?         ?       t	        |?      ?k  r寢t        j                  |?      S )Nr,   r-   ?   )樾  r.   r/   r2   )r5   ?array?integers?copy?len?vstack?randomr   ?min?append?argmax)?cornersr8   ?cands?dr=   ?rngs       €€r   ?initz#run_multistart_search.<locals>.init0   s?   鴢 ???楻?楪燫?燝≧?℅癛?癎?<?=??恠梶憒燗??'?,?,?.?/???媓??!?桰慖榮焭檢??3癢?=?>圗?恊淩焁橷燾沒?+?/?/癚?/?7圓?廕塉恥淩焂橸爍沑?*?+? ?媓??!? 弜墄?媫?r   g\徛?\?c                ?   ? | d    S )Nr1   r)   )r7   s    r   ?<lambda>z'run_multistart_search.<locals>.<lambda>@   s
-   € 燼?r   ?SLSQP?ineq)?type?funrA   g昫y?=F)?maxiter?ftol?disp)?method?bounds?constraints?optionsr1   gH汄讂沮multistart_slsqp_slack)?python?numpyr   r!   )r5   rG   ?default_rngr   ?uuid?uuid4?time?sqrt?triu_indices?ranger   r   rH   ?r_?ravelr   ?xr4   rD   ?Exceptionr
-   ?tolist?sys?version?__version__)r   r=   ?n_restartsr   ?timeout_secondsr
-   ?t_start?best_obj?best_coordsrZ   r>   rO   ?_?p0?t0?z0?resr8   ?objr;   r<   rN   s    `                 @@@r   ?run_multistart_searchrz   "   s?  麁 ???????%€C??????榬??"€F?廼塱媖€G?&?€H坘?圸?榵??(≧??????=?>?>€F?廮塤榅爍?)丗€B??-?? ????????? ??2??媀?????????#燿?*??廢塙????榬??"??		??+≧???6竳?N?3窾菶?R?T圕? ??????$?$燲╭?1圕??榗????(?)圕?榗焑檈?$?(?(?*╡?3?竓??+⊿疿玓?? ? ?癴??G?S燢?6?6?8衁[?!?E?,???癎?;?8穂盵????Z?*?,? , ? 	??	鷖   ?BH?	H?H)?   ?   g     纑@)r   r   r=   r   ro   r   r   r   rp   r   r#   r
-   )?__doc__?__future__r   rc   ra   ?platformrl   r_   r5   ?dataclassesr   r   ?scipy.optimizer   ?scipy.spatial.distancer   r   r
-   rz   r)   r   r   ?<module>r?      s;   ?? :? "?  ?  ? ? (? #? /? ?'? '? ?'?-,r   
