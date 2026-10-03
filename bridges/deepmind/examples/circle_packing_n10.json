@@ -1,0 +1,22 @@
+{
+  "problem_id": "erdos_circle_packing_n10",
+  "source": {
+    "type": "erdos_extremal_geometry",
+    "identifier": "circle_packing_square_n10"
+  },
+  "category": "geometry",
+  "ams": [
+    52
+  ],
+  "lean_theorem": "circlePacking10MinDist",
+  "lean_file": "ErdosAtlas/CirclePacking/N10.lean",
+  "formal_status": "STATEMENT_FORMALIZED",
+  "computational_status": "SYMBOLICALLY_CERTIFIED",
+  "certificate": "certificates/circle_packing_n10/polynomial_certificate.json",
+  "provenance": {
+    "repository": "suns1232023/erdos-proof-atlas"
+  },
+  "historical_note": "Polynomial first established by de Groot, Peikert & W\u00fcrtz (1990).",
+  "deepmind_compatible": true,
+  "note": "This is a compatibility layer. Do NOT fork google-deepmind/formal-conjectures."
+}
