@@ -1,0 +1,31 @@
+name: Certificate Check
+
+on:
+  push:
+    paths: ["certificates/**"]
+  workflow_dispatch:
+
+jobs:
+  cert-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[symbolic,dev]"
+      - name: Validate certificates
+        run: |
+          python -c "
+          import json, sys
+          from pathlib import Path
+          errors = 0
+          for f in Path('certificates').rglob('*.json'):
+              data = json.loads(f.read_text())
+              if data.get('status') in ('THEOREM','FORMAL_PROOF'):
+                  print(f'ERROR: {f} has forbidden status {data[\"status\"]}')
+                  errors += 1
+              else:
+                  print(f'OK: {f}')
+          sys.exit(errors)
+          "
