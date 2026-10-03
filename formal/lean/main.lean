@@ -1,5 +1,4 @@
-
--- Main.lean
+-- Main.lean — ErdosAtlas executable entry point
 import ErdosAtlas.Basic
 
 def main : IO Unit := do
