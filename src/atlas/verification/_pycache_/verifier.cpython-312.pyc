@@ -1,0 +1,13 @@
+?
+    ^z纉?  ?                  骎   ? d Z ddlmZ ddlZddlZddlmZ ddlm	Z	m
+Z
+mZ dd	d?Zd
+d?Z
+y)z9Independent verifier. Separate code paths from optimizer.?    )?annotationsN)?Path)?PackingConfiguration?evaluate_configuration?VerificationResultc                筲   ? t        | ?      5 }t        j                  |?      }d d d ?       t        j                  d   ?      }t        t
+        |?      |??      }t        ||??      S # 1 sw Y   孌xY w)N?coordinates)?n_pointsr	   )?contact_tol)?open?json?load?np?arrayr   ?lenr   )?result_pathr   ?f?data?coords?configs         ?/workspace/erdos-proof-atlas/src/atlas/verification/verifier.py?verify_from_filer   	   sW   € ?
+坘?榓?弝墆?媩?? 
+?廥塜恉??)?*€F?!?╲?繤?K€F?!?発?B?B? 
+?鷖   ?A%?A.c            	     髪  ? i } t        dt        j                  ddgddgddgg?      ?      }t        |?      j                   | d<   t        dt        j                  ddgddgg?      ?      }t        |?      j                   | d<   t        dt        j                  d	d	gd	d	gd
+d
+gg?      ?      }t        |?      j                   | d<   | S )z'All adversarial cases must be REJECTED.?   g殭櫃櫃?g吞烫烫??overlapping_circles?   g      ?g      ??boundary_violationg333333?gffffff??duplicate_coordinates)r   r   r   r   ?passed)?results?cfgs     r   ?verify_adversarial_casesr"      s?   € ?€G?榪???⊿?↖皊?癷?繱??J?K?L€C????D?K?K?K€G?!?"?榪???⊿?↖皊?癷?@?A?B€C?>竤?C?J?J?J€G? ?!?榪???⊿?↖皊?癷?繱??J?K?L€C?A??F?M?M?M€G?#?$?€N?    )g-C脞6?)r   r   r   ?float?returnr   )r%   zdict[str, bool])?__doc__?__future__r   r
+   ?numpyr   ?pathlibr   ?atlas.geometry.circle_packingr   r   r   r   r"   ? r#   r   ?<module>r,      s"   ?? ?? "? ? ? j? j?C?r#   
