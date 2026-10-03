@@ -116,4 +116,3 @@ class TestRootIsolation:
         assert val_a * val_b < 0, (
             f"No sign change: P18(a)={val_a}, P18(b)={val_b}"
         )
-
