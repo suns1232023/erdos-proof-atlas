@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[symbolic,dev]"
+      - name: Unit tests
+        run: python -m pytest tests/unit/ -v --tb=short
+      - name: Adversarial tests
+        run: python -m pytest tests/adversarial/ -v --tb=short
+      - name: Integration tests
+        run: python -m pytest tests/integration/ -v --tb=short
+      - name: Schema validation
+        run: python -c "import yaml; [yaml.safe_load(open(f)) for f in __import__('pathlib').Path('problems').rglob('*.yaml')]"
+      - name: Evidence guardrail check
+        run: |
+          python -c "
+          import sys; sys.path.insert(0,'src')
+          from atlas.schema.evidence import validate_upgrade
+          for f,t in [('NUMERICAL','THEOREM'),('COMPUTATIONAL','THEOREM'),('AI_GENERATED','VERIFIED')]:
+              try: validate_upgrade(f,t); sys.exit(1)
+              except ValueError: pass
+          print('PASS: all forbidden upgrades blocked')
+          "
