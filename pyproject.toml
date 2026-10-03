@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "erdos-proof-atlas"
 version = "0.1.0"
-description = "Erdős Proof Atlas: Computational Discovery, Exact Certification, and Lean-Checked Mathematics"
+description = "Erdos Proof Atlas: Computational Discovery, Exact Certification, and Lean-Checked Mathematics"
 authors = [{name = "Scott Sun", email = "contact@pq-research.org"}]
 license = {text = "MIT"}
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dependencies = ["numpy>=1.24", "scipy>=1.10", "pyyaml>=6.0"]
 
 [project.optional-dependencies]
 symbolic = ["sympy>=1.12", "mpmath>=1.3"]
-dev = ["pytest>=7.4", "ruff>=0.1", "pytest-timeout>=2.1"]
+dev = ["pytest>=7.4", "pytest-timeout>=2.1", "ruff>=0.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
