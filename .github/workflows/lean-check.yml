@@ -31,14 +31,14 @@ jobs:
             exit 1
           fi
           echo "[PASS] project_contract.json present"
-           python3 - << 'PYEOF2'
+          python3 -c "
           import json
-          c = json.load(open("formal/lean/project_contract.json"))
-          print(f"  project_mode: {c['project_mode']}")
-          print(f"  formal_level: {c['current_formal_level']}")
-          print(f"  mathlib_rev: {c['mathlib_rev']}")
-          print(f"  required_modules: {len(c['required_modules'])} files")
-          PYEOF2
+          c = json.load(open('formal/lean/project_contract.json'))
+          print(f'  project_mode: {c["project_mode"]}')
+          print(f'  formal_level: {c["current_formal_level"]}')
+          print(f'  mathlib_rev: {c["mathlib_rev"]}')
+          print(f'  required_modules: {len(c["required_modules"])} files')
+          "
 
       - name: Verify required modules (from project_contract.json)
         run: |
@@ -67,18 +67,18 @@ jobs:
 
       - name: Verify lakefile.toml is valid TOML with mathlib
         run: |
-         python3 - << 'PYEOF2'
+          python3 -c "
           import tomllib
-          with open("formal/lean/lakefile.toml", "rb") as f:
+          with open('formal/lean/lakefile.toml', 'rb') as f:
               data = tomllib.load(f)
-          assert "name" in data, "Missing top-level name"
-          assert "version" in data, "Missing top-level version"
-          req = data.get("require", [{}])[0]
-          assert req.get("name") == "mathlib", "Missing mathlib require"
-          print("[PASS] lakefile.toml valid TOML with mathlib")
-          print(f"       name={data['name']}, rev={req.get('rev')}")
-          PYEOF2  
-         
+          assert 'name' in data, 'Missing top-level name'
+          assert 'version' in data, 'Missing top-level version'
+          req = data.get('require', [{}])[0]
+          assert req.get('name') == 'mathlib', 'Missing mathlib require'
+          print('[PASS] lakefile.toml valid TOML with mathlib')
+          print(f'       name={data["name"]}, rev={req.get("rev")}')
+          "
+
       - name: Verify no trivial True conclusion (comment-aware)
         run: |
           python3 - << 'PYEOF2'
