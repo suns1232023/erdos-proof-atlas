@@ -1,42 +1,36 @@
-
 # Makefile for erdos-proof-atlas
 #
-# REPAIR V5:
-#   - Fixed non-existent script references:
-#     scripts/search.py    → scripts/run_problem.py
-#     scripts/verify.py   → scripts/verify_result.py
-#     scripts/exact.py    → scripts/build_certificate.py (exact symbolic cert)
-#     scripts/generate_manifest.py → scripts/build_manifest.py
-#   - All test targets use tests/ (canonical)
-#   - make lean FAILS if Lean unavailable
-#   - make all fails if any mandatory stage fails
+# Pipeline (per README):
+#   SEARCH -> VERIFY -> CERTIFY -> FORMALIZE -> AUDIT -> REPORT
 #
-# Usage:
+# Targets:
 #   make install        Install Python dependencies
+#   make compile-check  Check Python syntax
 #   make test           Run all pytest tests
+#   make check-paths    Run path consistency check
 #   make search         Run numerical search (N=10 packing)
 #   make verify         Run independent verification
-#   make exact          Run exact symbolic computation / certificate
-#   make certify        Build algebraic certificate
-#   make lean           Run Lean 4 formal verification (FAILS if Lean unavailable)
-#   make status         Report formal level (does NOT fail if Lean unavailable)
-#   make audit          Run atlas audit (repository + evidence)
-#   make formal-audit   Run formal audit (Lean formalization)
-#   make full-audit     Run complete audit (atlas + formal)
-#   make report         Generate reproducibility report
+#   make certify        Build algebraic certificate (E5)
+#   make lean           Run Lean formal verification (requires Lean 4)
+#   make status         Report formal level (does NOT fail without Lean)
+#   make audit          Run atlas audit
+#   make formal-audit   Run formal audit
+#   make full-audit     Run complete audit
 #   make deepmind-export Export DeepMind metadata
 #   make manifest       Generate reproducibility manifest
-#   make check-paths    Run path consistency check
-#   make all            Run complete pipeline (fails on any error)
+#   make report         Generate research report
+#   make all            Complete computational pipeline (no Lean required)
+#   make all-formal     Complete pipeline including Lean verification
 #   make clean          Remove generated files
 
 PYTHON := python3
 PYTEST := python3 -m pytest
 SCRIPTS := scripts
 
-.PHONY: install test unit-test integration-test adversarial-test regression-test \
-        search verify exact certify lean status audit formal-audit full-audit \
-        report deepmind-export manifest check-paths all clean
+.PHONY: install compile-check test unit-test integration-test adversarial-test \
+        regression-test formal-test search verify certify lean status \
+        check-paths audit formal-audit full-audit deepmind-export manifest \
+        report all all-formal clean
 
 # ---------------------------------------------------------------------------
 # Installation
@@ -47,39 +41,33 @@ install:
 	@echo "[PASS] Dependencies installed"
 
 # ---------------------------------------------------------------------------
-# Tests (canonical: tests/ directory)
+# Tests
 # ---------------------------------------------------------------------------
+compile-check:
+	$(PYTHON) -m compileall src scripts
+	@echo "[PASS] Python compilation check passed"
+
 test:
 	$(PYTEST) tests/ -q --tb=short
 	@echo "[PASS] All tests passed"
 
 unit-test:
 	$(PYTEST) tests/unit/ -v --tb=short
-	@echo "[PASS] Unit tests passed"
 
 integration-test:
 	$(PYTEST) tests/integration/ -v --tb=short
-	@echo "[PASS] Integration tests passed"
 
 adversarial-test:
 	$(PYTEST) tests/adversarial/ -v --tb=short
-	@echo "[PASS] Adversarial tests passed"
 
 regression-test:
 	$(PYTEST) tests/regression/ -v --tb=short
-	@echo "[PASS] Regression tests passed"
 
 formal-test:
 	$(PYTEST) tests/formal/ -v --tb=short
-	@echo "[PASS] Formal tests passed"
-
-compile-check:
-	$(PYTHON) -m compileall src scripts
-	@echo "[PASS] Python compilation check passed"
 
 # ---------------------------------------------------------------------------
-# Computational pipeline
-# REPAIR V5: Fixed script names to match actual files in repo
+# Computational pipeline: SEARCH -> VERIFY -> CERTIFY
 # ---------------------------------------------------------------------------
 search:
 	$(PYTHON) $(SCRIPTS)/run_problem.py circle-packing-square-n10
@@ -89,24 +77,20 @@ verify:
 	$(PYTHON) $(SCRIPTS)/verify_result.py results/latest
 	@echo "[PASS] Verification complete"
 
-exact:
-	$(PYTHON) $(SCRIPTS)/build_certificate.py
-	@echo "[PASS] Exact symbolic computation / certificate built"
-
 certify:
 	$(PYTHON) $(SCRIPTS)/build_certificate.py
 	@echo "[PASS] Certificate built"
 
 # ---------------------------------------------------------------------------
 # Lean formal verification
-# make lean FAILS if Lean is unavailable (no silent success)
+# make lean: FAILS if Lean unavailable (strict mode)
+# make status: reports level without failing (status mode)
 # ---------------------------------------------------------------------------
 lean:
 	@echo "Running Lean 4 formal verification (strict mode)..."
 	$(PYTHON) $(SCRIPTS)/lean_check.py
 	@echo "[PASS] Lean formal verification passed"
 
-# Status-only mode: reports formal level without failing when Lean unavailable
 status:
 	$(PYTHON) $(SCRIPTS)/lean_check.py --status
 
@@ -131,12 +115,7 @@ full-audit:
 
 # ---------------------------------------------------------------------------
 # Reporting and export
-# REPAIR V5: Fixed generate_manifest.py → build_manifest.py
 # ---------------------------------------------------------------------------
-report:
-	$(PYTHON) $(SCRIPTS)/generate_report.py
-	@echo "[PASS] Report generated"
-
 deepmind-export:
 	$(PYTHON) $(SCRIPTS)/export_deepmind.py
 	$(PYTHON) $(SCRIPTS)/validate_deepmind_mapping.py
@@ -146,14 +125,29 @@ manifest:
 	$(PYTHON) $(SCRIPTS)/build_manifest.py
 	@echo "[PASS] Reproducibility manifest generated"
 
+report:
+	$(PYTHON) $(SCRIPTS)/generate_report.py
+	@echo "[PASS] Report generated"
+
 # ---------------------------------------------------------------------------
-# Complete pipeline
-# make all fails if ANY mandatory stage fails
+# Complete pipelines
+#
+# make all: computational/reproducibility pipeline (no Lean required)
+#   README pipeline: SEARCH -> VERIFY -> CERTIFY -> AUDIT -> REPORT
+#
+# make all-formal: adds Lean verification gate
 # ---------------------------------------------------------------------------
-all: compile-check test check-paths certify lean audit deepmind-export manifest
+all: compile-check test check-paths search verify certify audit deepmind-export manifest report
 	@echo ""
 	@echo "============================================================"
-	@echo "  BUILD COMPLETE — All mandatory checks passed"
+	@echo "  BUILD COMPLETE (computational pipeline)"
+	@echo "  Lean verification: run 'make lean' or 'make all-formal'"
+	@echo "============================================================"
+
+all-formal: compile-check test check-paths search verify certify lean audit deepmind-export manifest report
+	@echo ""
+	@echo "============================================================"
+	@echo "  BUILD COMPLETE (full pipeline including Lean)"
 	@echo "============================================================"
 
 # ---------------------------------------------------------------------------
