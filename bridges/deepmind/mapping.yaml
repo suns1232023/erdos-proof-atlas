@@ -1,8 +1,69 @@
+
+# mapping.yaml — DeepMind Bridge Theorem Mapping
+#
+# REPAIR NOTE (P1 Fix):
+#   - Unified canonical theorem name to: circlePacking10MinDistBound
+#   - Previously inconsistent: mapping.yaml used "circlePacking10MinDistBound"
+#     while export_deepmind.py used "circlePacking10MinDist" (missing "Bound")
+#   - All references now use the single canonical name below.
+#
+# Semantics:
+#   This file maps Atlas problem definitions to Lean theorem identifiers.
+#   "deepmind_compatible: metadata_export" means metadata JSON is generated.
+#   Full DeepMind formalization compatibility requires additional validation.
+
+version: "1.0"
+canonical_theorem_name: "circlePacking10MinDistBound"
+
 problems:
-  - atlas_id: circle-packing-square-n10
-    deepmind_category: geometry
-    ams: [52]
-    lean_theorem: circlePacking10MinDistBound
-    lean_file: ErdosAtlas/CirclePacking/N10.lean
-    formal_status: STATEMENT_FORMALIZED
-    computational_status: SYMBOLICALLY_CERTIFIED
+  - problem_id: "circle_packing_n10"
+    display_name: "10-Point Square Packing Optimal Distance"
+    description: >
+      Find the maximum minimum pairwise distance d10 for 10 points
+      in the unit square [0,1]². The optimal value d10 ≈ 0.421279543983903...
+      satisfies an irreducible degree-18 polynomial P18(d) over Q,
+      with Galois group Gal(P18/Q) ≅ S18.
+    ams_classification:
+      - "52C15"   # Packings and coverings in 2 dimensions
+      - "11R04"   # Algebraic numbers: general
+      - "13P10"   # Gröbner bases and relevant algorithms
+    historical_source: "de Groot, Peikert, Würtz (1990)"
+    oeis: "A281065"
+
+    # Lean formalization
+    lean:
+      # CANONICAL NAME — must match exactly in:
+      #   - ErdosAtlas/CirclePacking/N10.lean (theorem declaration)
+      #   - export_deepmind.py ("lean_theorem" field)
+      #   - JSON output ("lean_theorem" field)
+      #   - all documentation and tests
+      lean_theorem: "circlePacking10MinDistBound"
+      lean_file: "formal/lean/ErdosAtlas/CirclePacking/N10.lean"
+      lean_namespace: "ErdosAtlas.CirclePacking"
+      formal_level: "L1"
+      formal_level_description: "STATEMENT_FORMALIZED"
+      sorry_present: true
+      notes: >
+        Statement is mathematically meaningful (uses ℝ, not Float;
+        conclusion is a non-trivial upper bound, not → True).
+        Proof marked sorry pending L3/L4 development.
+
+    # Computational evidence
+    computational:
+      evidence_level: "E5"
+      evidence_description: "SYMBOLICALLY_CERTIFIED"
+      certificate_file: "certificates/circle_packing_n10/certificate.json"
+      polynomial_degree: 18
+      galois_group: "S_18"
+      irreducibility_prime: 17
+      root_isolation_method: "Sturm_sequence"
+
+    # DeepMind compatibility
+    deepmind:
+      compatible: "metadata_export"
+      # NOTE: "metadata_export" means the JSON metadata is generated and
+      # points to a real Lean theorem. Full DeepMind formalization
+      # compatibility (theorem format, tactic style, etc.) requires
+      # additional validation beyond metadata export.
+      export_format: "json"
+      validation_status: "pending"
