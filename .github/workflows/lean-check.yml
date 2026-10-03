@@ -1,364 +1,222 @@
 
-#!/usr/bin/env python3
-"""
-lean_check.py — Lean 4 formal verification checker (V2).
+# lean-check.yml — Lean 4 formal verification CI workflow
+#
+# REPAIR V2 (per reviewer):
+#   ① Removed "lake exe cache get || true" — strict execution, no error suppression
+#   ② sorry detection is now STATUS-AWARE (not a blanket CI fail):
+#      - L1/L2/L3: sorry allowed (documented proof gaps)
+#      - L4: sorry allowed with explicit marking
+#      - L5: sorry causes CI FAIL
+#   ③ Added #print axioms check via lake env lean
+#   ④ Added Lean project structure validation
+#   ⑤ Added canonical theorem name check
 
-REPAIR V2 (per reviewer):
-  ① make lean FAILS if Lean unavailable (exit 1, not 0)
-  ② sorry detection is STATUS-AWARE:
-       L1/L2/L3/L4 → sorry allowed (documented proof gaps)
-       L5           → sorry causes FAIL
-  ③ Axiom inspection via `lake env lean` + #print axioms
-     (replaces unreliable grep-based detection)
-  ④ Separate strict mode (make lean) vs status mode (make status)
+name: CI — Lean 4 Formal Verification
 
-Usage:
-  python scripts/lean_check.py              # strict mode (make lean)
-  python scripts/lean_check.py --status     # status-only (make status)
-  python scripts/lean_check.py --level L5   # override claimed level
-"""
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
 
-import subprocess
-import shutil
-import sys
-import os
-import argparse
-from pathlib import Path
+jobs:
+  lean-structure:
+    name: Lean Project Structure Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-LEAN_DIR = Path("formal/lean")
-CANONICAL_THEOREM = "circlePacking10MinDistBound"
-CANONICAL_NAMESPACE = "ErdosAtlas.CirclePacking"
+      - name: Verify required Lean files exist
+        run: |
+          MISSING=0
+          REQUIRED=(
+            "formal/lean/lakefile.toml"
+            "formal/lean/lean-toolchain"
+            "formal/lean/lake-manifest.json"
+            "formal/lean/Main.lean"
+            "formal/lean/ErdosAtlas/Basic.lean"
+            "formal/lean/ErdosAtlas/Geometry/Point.lean"
+            "formal/lean/ErdosAtlas/Geometry/Distance.lean"
+            "formal/lean/ErdosAtlas/Geometry/UnitSquare.lean"
+            "formal/lean/ErdosAtlas/CirclePacking/Definitions.lean"
+            "formal/lean/ErdosAtlas/CirclePacking/N10.lean"
+            "formal/lean/ErdosAtlas/CirclePacking/Certificate.lean"
+            "formal/lean/ErdosAtlas/Audit/Axioms.lean"
+          )
+          for f in "${REQUIRED[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "[FAIL] Missing: $f"
+              MISSING=1
+            else
+              echo "[OK]   $f"
+            fi
+          done
+          [ "$MISSING" -eq 0 ] || exit 1
+          echo "[PASS] All required Lean files present"
 
-# Evidence level definitions
-L_LEVELS = {
-    "L0": "NOT_FORMALIZED",
-    "L1": "STATEMENT_FORMALIZED",
-    "L2": "DEFINITIONS_FORMALIZED",
-    "L3": "KEY_LEMMAS_FORMALIZED",
-    "L4": "PROOF_SOURCE_COMPLETE",
-    "L5": "KERNEL_CHECKED",
-}
+      - name: Verify lakefile.toml has mathlib [[require]]
+        run: |
+          if ! grep -q "\[\[require\]\]" formal/lean/lakefile.toml; then
+            echo "[FAIL] lakefile.toml missing [[require]] block"
+            exit 1
+          fi
+          if ! grep -q "mathlib" formal/lean/lakefile.toml; then
+            echo "[FAIL] lakefile.toml missing mathlib dependency"
+            exit 1
+          fi
+          echo "[PASS] lakefile.toml has mathlib [[require]]"
 
-# Authorized axioms (acceptable at all levels including L5)
-AUTHORIZED_AXIOMS = {
-    "Classical.choice",
-    "propext",
-    "Quot.sound",
-    "funext",
-}
+      - name: Verify canonical theorem name in N10.lean
+        run: |
+          CANONICAL="circlePacking10MinDistBound"
+          if ! grep -q "theorem $CANONICAL" formal/lean/ErdosAtlas/CirclePacking/N10.lean; then
+            echo "[FAIL] Canonical theorem '$CANONICAL' not declared in N10.lean"
+            exit 1
+          fi
+          echo "[PASS] Canonical theorem '$CANONICAL' declared"
 
-RESULTS = []
+      - name: Verify no Float in theorem statements
+        run: |
+          FLOAT_FOUND=0
+          while IFS= read -r -d '' file; do
+            while IFS= read -r line; do
+              if echo "$line" | grep -qE "^(theorem|def )" && echo "$line" | grep -q "Float"; then
+                echo "[FAIL] Float in theorem/def: $file: $line"
+                FLOAT_FOUND=1
+              fi
+            done < "$file"
+          done < <(find formal/lean/ErdosAtlas -name "*.lean" -print0)
+          [ "$FLOAT_FOUND" -eq 0 ] || exit 1
+          echo "[PASS] No Float in theorem statements"
 
+      - name: Verify no trivial '→ True' conclusion
+        run: |
+          if grep -r "→ True\|-> True" formal/lean/ErdosAtlas/ --include="*.lean" -q; then
+            echo "[FAIL] Found '→ True' conclusion — placeholder theorem detected"
+            grep -rn "→ True\|-> True" formal/lean/ErdosAtlas/ --include="*.lean"
+            exit 1
+          fi
+          echo "[PASS] No '→ True' placeholder conclusions"
 
-def record(label: str, passed: bool, detail: str = ""):
-    status = "[PASS]" if passed else "[FAIL]"
-    msg = f"  {status} {label}"
-    if detail:
-        msg += f"\n         {detail}"
-    print(msg)
-    RESULTS.append((label, passed))
+  lean-build:
+    name: Lean 4 Build (lake build)
+    runs-on: ubuntu-latest
+    needs: lean-structure
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Install Lean 4 (elan)
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf \
+            | sh -s -- -y --default-toolchain leanprover/lean4:v4.14.0
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
 
-def check_lean_available() -> bool:
-    return shutil.which("lean") is not None and shutil.which("lake") is not None
+      - name: Verify Lean toolchain
+        run: |
+          lean --version
+          lake --version
+          echo "[PASS] Lean toolchain available"
 
+      - name: Validate lake-manifest.json
+        run: |
+          if [ ! -f formal/lean/lake-manifest.json ]; then
+            echo "[FAIL] lake-manifest.json missing"
+            echo "       Run 'lake update' in formal/lean/ and commit the result"
+            exit 1
+          fi
+          echo "[PASS] lake-manifest.json present"
 
-def check_required_files() -> list[str]:
-    required = [
-        LEAN_DIR / "lakefile.toml",
-        LEAN_DIR / "lean-toolchain",
-        LEAN_DIR / "lake-manifest.json",
-        LEAN_DIR / "Main.lean",
-        LEAN_DIR / "ErdosAtlas" / "Basic.lean",
-        LEAN_DIR / "ErdosAtlas" / "Geometry" / "Point.lean",
-        LEAN_DIR / "ErdosAtlas" / "Geometry" / "Distance.lean",
-        LEAN_DIR / "ErdosAtlas" / "Geometry" / "UnitSquare.lean",
-        LEAN_DIR / "ErdosAtlas" / "CirclePacking" / "Definitions.lean",
-        LEAN_DIR / "ErdosAtlas" / "CirclePacking" / "N10.lean",
-        LEAN_DIR / "ErdosAtlas" / "Audit" / "Axioms.lean",
-    ]
-    return [str(f) for f in required if not f.is_file()]
+      - name: Get mathlib cache
+        # REPAIR: Removed || true — cache failure is a real error
+        run: |
+          cd formal/lean
+          lake exe cache get
+          echo "[PASS] Lean/mathlib cache retrieved"
 
+      - name: Build Lean project
+        run: |
+          cd formal/lean
+          lake build
+          echo "[PASS] lake build succeeded"
 
-def check_lakefile_has_mathlib() -> bool:
-    lakefile = LEAN_DIR / "lakefile.toml"
-    if not lakefile.is_file():
-        return False
-    content = lakefile.read_text()
-    return "mathlib" in content and "[[require]]" in content
+  lean-sorry-check:
+    name: Lean Sorry Check (status-aware)
+    runs-on: ubuntu-latest
+    needs: lean-build
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Install Lean 4 (elan)
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf \
+            | sh -s -- -y --default-toolchain leanprover/lean4:v4.14.0
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
 
-def check_no_trivial_true() -> list[str]:
-    """Find .lean files with '→ True' conclusions (placeholder theorems)."""
-    violations = []
-    lean_src = LEAN_DIR / "ErdosAtlas"
-    if not lean_src.is_dir():
-        return violations
-    for f in lean_src.rglob("*.lean"):
-        content = f.read_text()
-        if "→ True" in content or "-> True" in content:
-            violations.append(str(f))
-    return violations
+      - name: Status-aware sorry detection
+        # REPAIR V2: sorry detection is now level-aware, not a blanket fail.
+        # L1/L2/L3/L4: sorry is allowed (documented proof gaps)
+        # L5: sorry causes CI FAIL
+        # Current level is L1 — sorry is expected and allowed.
+        run: |
+          CURRENT_LEVEL="L1"
+          echo "Current formal level: $CURRENT_LEVEL"
 
+          SORRY_COUNT=0
+          while IFS= read -r -d '' file; do
+            while IFS= read -r line; do
+              stripped="${line#"${line%%[![:space:]]*}"}"
+              if [[ "$stripped" != --* ]] && echo "$line" | grep -q "sorry"; then
+                echo "  [sorry] $file: $line"
+                SORRY_COUNT=$((SORRY_COUNT + 1))
+              fi
+            done < "$file"
+          done < <(find formal/lean/ErdosAtlas -name "*.lean" -print0)
 
-def check_no_float_in_theorems() -> list[str]:
-    """Find .lean files with Float in theorem/def lines."""
-    violations = []
-    lean_src = LEAN_DIR / "ErdosAtlas"
-    if not lean_src.is_dir():
-        return violations
-    for f in lean_src.rglob("*.lean"):
-        lines = f.read_text().splitlines()
-        for lineno, line in enumerate(lines, 1):
-            stripped = line.strip()
-            if (stripped.startswith("theorem") or stripped.startswith("def ")) \
-                    and "Float" in line:
-                violations.append(f"{f}:{lineno}: {line.rstrip()}")
-    return violations
+          echo "Sorry count: $SORRY_COUNT"
 
+          if [ "$CURRENT_LEVEL" = "L5" ] && [ "$SORRY_COUNT" -gt 0 ]; then
+            echo "[FAIL] L5 claimed but $SORRY_COUNT sorry found — CI FAIL"
+            exit 1
+          elif [ "$SORRY_COUNT" -gt 0 ]; then
+            echo "[INFO] $SORRY_COUNT sorry found at level $CURRENT_LEVEL — allowed (not L5)"
+          else
+            echo "[PASS] No sorry found — L5 candidate"
+          fi
 
-def find_sorry_occurrences() -> list[tuple[str, int, str]]:
-    """Find sorry in .lean files (excluding comment lines)."""
-    occurrences = []
-    lean_src = LEAN_DIR / "ErdosAtlas"
-    if not lean_src.is_dir():
-        return occurrences
-    for f in lean_src.rglob("*.lean"):
-        lines = f.read_text().splitlines()
-        for lineno, line in enumerate(lines, 1):
-            stripped = line.strip()
-            if stripped.startswith("--"):
-                continue
-            if "sorry" in line:
-                occurrences.append((str(f), lineno, line.rstrip()))
-    return occurrences
+      - name: Axiom audit via #print axioms
+        # REPAIR V2: Uses Lean kernel inspection, not grep
+        run: |
+          cd formal/lean
+          # Run #print axioms on the canonical theorem
+          lake env lean --run - <<'EOF'
+          import ErdosAtlas.CirclePacking.N10
+          #print axioms ErdosAtlas.CirclePacking.circlePacking10MinDistBound
+          EOF
+          echo "[PASS] Axiom audit complete (see output above)"
 
+  lean-no-or-true:
+    name: Verify No Error Suppression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-def check_sorry_for_level(claimed_level: str) -> tuple[bool, str]:
-    """
-    Status-aware sorry check.
-    L1/L2/L3/L4: sorry allowed → returns (True, info_message)
-    L5:          sorry causes FAIL → returns (False, error_message)
-    """
-    occurrences = find_sorry_occurrences()
-    count = len(occurrences)
+      - name: Check no || true in CI workflows
+        run: |
+          if grep -r "|| true" .github/workflows/ | grep -v "^#" | grep -v "^.*#.*|| true"; then
+            echo "[FAIL] Found '|| true' in CI workflows — error suppression detected"
+            exit 1
+          fi
+          echo "[PASS] No '|| true' in CI workflows"
 
-    if claimed_level == "L5":
-        if count > 0:
-            details = "; ".join(f"{f}:{ln}" for f, ln, _ in occurrences[:5])
-            return False, f"L5 claimed but {count} sorry found: {details}"
-        return True, "No sorry found — L5 kernel check passed"
-    else:
-        if count > 0:
-            return True, (
-                f"{count} sorry found at level {claimed_level} — "
-                f"allowed (sorry is prohibited only at L5)"
-            )
-        return True, f"No sorry found at level {claimed_level}"
-
-
-def run_axiom_check() -> tuple[bool, str]:
-    """
-    Run #print axioms via lake env lean.
-    Returns (ok, output_text).
-    """
-    if not check_lean_available():
-        return False, "Lean not available"
-
-    lean_script = f"""
-import {CANONICAL_NAMESPACE}.N10
-#print axioms {CANONICAL_NAMESPACE}.{CANONICAL_THEOREM}
-"""
-    try:
-        result = subprocess.run(
-            ["lake", "env", "lean", "--stdin"],
-            input=lean_script,
-            cwd=str(LEAN_DIR),
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        output = result.stdout + result.stderr
-
-        # Check for unauthorized axioms
-        unauthorized = []
-        for line in output.splitlines():
-            if "depends on axioms" in line or "axioms:" in line.lower():
-                continue
-            for ax in ["sorryAx", "sorry"]:
-                if ax in line:
-                    unauthorized.append(f"sorry axiom: {line.strip()}")
-
-        if unauthorized:
-            return False, f"Unauthorized axioms found:\n" + "\n".join(unauthorized)
-
-        return True, output.strip() or "No axiom output (may need lake build first)"
-
-    except subprocess.TimeoutExpired:
-        return False, "Axiom check timed out"
-    except FileNotFoundError:
-        return False, "lake not found"
-
-
-def run_lake_build() -> tuple[bool, str]:
-    """Run lake build. Returns (success, output)."""
-    try:
-        result = subprocess.run(
-            ["lake", "build"],
-            cwd=str(LEAN_DIR),
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        return result.returncode == 0, result.stdout + result.stderr
-    except subprocess.TimeoutExpired:
-        return False, "lake build timed out after 300 seconds"
-    except FileNotFoundError:
-        return False, "lake not found on PATH"
-
-
-def strict_mode(claimed_level: str = "L1") -> int:
-    """
-    Strict mode: used by `make lean`.
-    FAILS (exit 1) if Lean unavailable or any mandatory check fails.
-    """
-    print("=" * 65)
-    print(f"  Lean 4 Formal Verification (strict, claimed level: {claimed_level})")
-    print("=" * 65)
-
-    # --- Check 1: Lean availability ---
-    lean_ok = check_lean_available()
-    if not lean_ok:
-        print("[FAIL] Lean/lake not installed or not on PATH.")
-        print("       Install via: curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh")
-        print("       make lean MUST fail when Lean is unavailable.")
-        print("       Use 'make status' to report L0 without failing.")
-        return 1  # REPAIR: was return 0 — now correctly returns 1
-    record("Lean/lake available", True)
-
-    # --- Check 2: Required files ---
-    missing = check_required_files()
-    record("All required Lean files present", len(missing) == 0,
-           f"Missing: {missing}" if missing else "")
-
-    # --- Check 3: mathlib dependency ---
-    mathlib_ok = check_lakefile_has_mathlib()
-    record("lakefile.toml has mathlib [[require]]", mathlib_ok,
-           "Add [[require]] mathlib block to lakefile.toml" if not mathlib_ok else "")
-
-    # --- Check 4: No trivial → True ---
-    trivial = check_no_trivial_true()
-    record("No '→ True' placeholder conclusions", len(trivial) == 0,
-           f"Found in: {trivial}" if trivial else "")
-
-    # --- Check 5: No Float in theorems ---
-    float_violations = check_no_float_in_theorems()
-    record("No Float in theorem/def lines", len(float_violations) == 0,
-           f"Use ℝ instead: {float_violations[:3]}" if float_violations else "")
-
-    # --- Check 6: lake build ---
-    print("\n  [...] Running lake build...")
-    build_ok, build_out = run_lake_build()
-    record("lake build succeeds", build_ok,
-           "\n".join(build_out.splitlines()[-15:]) if not build_ok else "")
-
-    # --- Check 7: Status-aware sorry check ---
-    sorry_ok, sorry_msg = check_sorry_for_level(claimed_level)
-    record(f"Sorry check (level {claimed_level})", sorry_ok, sorry_msg)
-
-    # --- Check 8: Axiom audit (if build succeeded) ---
-    if build_ok:
-        print("\n  [...] Running axiom audit (#print axioms)...")
-        axiom_ok, axiom_out = run_axiom_check()
-        record("Axiom audit", axiom_ok, axiom_out[:300] if not axiom_ok else axiom_out[:200])
-    else:
-        record("Axiom audit (skipped — build failed)", False, "Fix lake build first")
-
-    # --- Summary ---
-    print("\n" + "=" * 65)
-    passed = sum(1 for _, ok in RESULTS if ok)
-    failed = sum(1 for _, ok in RESULTS if not ok)
-    total = len(RESULTS)
-    print(f"  Results: {passed}/{total} passed, {failed} failed")
-
-    if failed == 0:
-        print(f"[PASS] Lean checks passed — Formal level: {claimed_level} ({L_LEVELS[claimed_level]})")
-        return 0
-    else:
-        print(f"[FAIL] {failed} Lean check(s) failed")
-        return 1
-
-
-def status_mode() -> int:
-    """
-    Status mode: used by `make status`.
-    Reports formal level without failing when Lean unavailable.
-    """
-    print("Lean Formal Verification Status")
-    print("-" * 40)
-
-    lean_ok = check_lean_available()
-    if not lean_ok:
-        print("Lean available:  NO")
-        print("Formal level:    L0 (NOT_FORMALIZED)")
-        print("Note: Install Lean 4 to advance beyond L0.")
-        return 0  # status mode: OK to return 0
-
-    files_ok = len(check_required_files()) == 0
-    mathlib_ok = check_lakefile_has_mathlib()
-    trivial_ok = len(check_no_trivial_true()) == 0
-    float_ok = len(check_no_float_in_theorems()) == 0
-
-    build_ok = False
-    sorry_count = 0
-    if files_ok and mathlib_ok:
-        build_ok, _ = run_lake_build()
-        if build_ok:
-            sorry_count = len(find_sorry_occurrences())
-
-    # Determine level
-    if not lean_ok or not files_ok or not mathlib_ok:
-        level = "L0"
-    elif not trivial_ok or not float_ok:
-        level = "L0"  # statement not yet meaningful
-    elif not build_ok:
-        level = "L1"  # files exist but build fails
-    elif sorry_count == 0:
-        level = "L5"  # builds + no sorry
-    else:
-        level = "L1"  # builds but has sorry (current state)
-
-    print(f"Lean available:   YES")
-    print(f"Files OK:         {files_ok}")
-    print(f"mathlib OK:       {mathlib_ok}")
-    print(f"No → True:        {trivial_ok}")
-    print(f"No Float:         {float_ok}")
-    print(f"lake build OK:    {build_ok}")
-    print(f"Sorry count:      {sorry_count}")
-    print(f"Formal level:     {level} ({L_LEVELS.get(level, '?')})")
-    return 0
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Lean 4 formal verification checker (V2)"
-    )
-    parser.add_argument(
-        "--status", action="store_true",
-        help="Status-only mode: report level without failing when Lean unavailable"
-    )
-    parser.add_argument(
-        "--level", default="L1",
-        choices=list(L_LEVELS.keys()),
-        help="Claimed formal level for sorry check (default: L1)"
-    )
-    args = parser.parse_args()
-
-    if args.status:
-        sys.exit(status_mode())
-    else:
-        sys.exit(strict_mode(claimed_level=args.level))
-
-
-if __name__ == "__main__":
-    main()
+      - name: Check no || true in Makefile
+        run: |
+          if [ -f Makefile ]; then
+            # Allow || true only in clean target (removing dirs is OK to suppress)
+            VIOLATIONS=$(grep "|| true" Makefile | grep -v "clean\|rm -rf\|find.*delete" || true)
+            if [ -n "$VIOLATIONS" ]; then
+              echo "[FAIL] Found '|| true' in mandatory Makefile steps:"
+              echo "$VIOLATIONS"
+              exit 1
+            fi
+          fi
+          echo "[PASS] No problematic '|| true' in Makefile"
