@@ -1,0 +1,33 @@
+name: Lean Check
+
+on:
+  push:
+    paths: ["formal/**"]
+  workflow_dispatch:
+
+jobs:
+  lean-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lean 4
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+      - name: Cache mathlib
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: lean-${{ hashFiles('formal/lean/lean-toolchain') }}
+      - name: Build Lean project
+        run: |
+          cd formal/lean
+          lake exe cache get || true
+          lake build
+      - name: Check for sorry
+        run: |
+          if grep -r "sorry" formal/lean/ErdosAtlas/ --include="*.lean"; then
+            echo "WARNING: sorry found — formal level is L4, not L5"
+          else
+            echo "No sorry found — formal level may be L5"
+          fi
