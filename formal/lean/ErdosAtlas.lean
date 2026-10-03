@@ -1,2 +1,2 @@
--- ErdosAtlas.lean — library root module (required by `lean_lib ErdosAtlas`).
+-- ErdosAtlas.lean — Root module
 import ErdosAtlas.Basic
