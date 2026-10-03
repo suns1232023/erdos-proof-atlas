@@ -1,19 +1,22 @@
 
 # Makefile for erdos-proof-atlas
 #
-# REPAIR NOTE (P0 Fix):
-#   - All test targets use tests/ (canonical), not test/
-#   - Removed || true from all mandatory verification steps
-#   - make lean FAILS if Lean is unavailable (no silent success)
+# REPAIR V5:
+#   - Fixed non-existent script references:
+#     scripts/search.py    → scripts/run_problem.py
+#     scripts/verify.py   → scripts/verify_result.py
+#     scripts/exact.py    → scripts/build_certificate.py (exact symbolic cert)
+#     scripts/generate_manifest.py → scripts/build_manifest.py
+#   - All test targets use tests/ (canonical)
+#   - make lean FAILS if Lean unavailable
 #   - make all fails if any mandatory stage fails
-#   - Added make status for non-failing status report
 #
 # Usage:
 #   make install        Install Python dependencies
 #   make test           Run all pytest tests
 #   make search         Run numerical search (N=10 packing)
-#   make verify         Run algebraic verification
-#   make exact          Run exact symbolic computation
+#   make verify         Run independent verification
+#   make exact          Run exact symbolic computation / certificate
 #   make certify        Build algebraic certificate
 #   make lean           Run Lean 4 formal verification (FAILS if Lean unavailable)
 #   make status         Report formal level (does NOT fail if Lean unavailable)
@@ -76,18 +79,19 @@ compile-check:
  
 # ---------------------------------------------------------------------------
 # Computational pipeline
+# REPAIR V5: Fixed script names to match actual files in repo
 # ---------------------------------------------------------------------------
 search:
-	$(PYTHON) $(SCRIPTS)/search.py
+	$(PYTHON) $(SCRIPTS)/run_problem.py circle-packing-square-n10
 	@echo "[PASS] Numerical search complete"
  
 verify:
-	$(PYTHON) $(SCRIPTS)/verify.py
+	$(PYTHON) $(SCRIPTS)/verify_result.py results/latest
 	@echo "[PASS] Verification complete"
  
 exact:
-	$(PYTHON) $(SCRIPTS)/exact.py
-	@echo "[PASS] Exact computation complete"
+	$(PYTHON) $(SCRIPTS)/build_certificate.py
+	@echo "[PASS] Exact symbolic computation / certificate built"
  
 certify:
 	$(PYTHON) $(SCRIPTS)/build_certificate.py
@@ -95,7 +99,7 @@ certify:
  
 # ---------------------------------------------------------------------------
 # Lean formal verification
-# REPAIR: make lean FAILS if Lean is unavailable (no || true, no silent success)
+# make lean FAILS if Lean is unavailable (no silent success)
 # ---------------------------------------------------------------------------
 lean:
 	@echo "Running Lean 4 formal verification (strict mode)..."
@@ -127,6 +131,7 @@ full-audit:
  
 # ---------------------------------------------------------------------------
 # Reporting and export
+# REPAIR V5: Fixed generate_manifest.py → build_manifest.py
 # ---------------------------------------------------------------------------
 report:
 	$(PYTHON) $(SCRIPTS)/generate_report.py
@@ -138,12 +143,12 @@ deepmind-export:
 	@echo "[PASS] DeepMind export and validation complete"
  
 manifest:
-	$(PYTHON) $(SCRIPTS)/generate_manifest.py
+	$(PYTHON) $(SCRIPTS)/build_manifest.py
 	@echo "[PASS] Reproducibility manifest generated"
  
 # ---------------------------------------------------------------------------
 # Complete pipeline
-# REPAIR: make all fails if ANY mandatory stage fails (no || true anywhere)
+# make all fails if ANY mandatory stage fails
 # ---------------------------------------------------------------------------
 all: compile-check test check-paths certify lean audit deepmind-export manifest
 	@echo ""
