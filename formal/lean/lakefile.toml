@@ -1,0 +1,11 @@
+[package]
+name = "ErdosAtlas"
+version = "0.1.0"
+defaultTargets = ["ErdosAtlas"]
+
+[[lean_lib]]
+name = "ErdosAtlas"
+
+[[lean_exe]]
+name = "Main"
+root = "Main"
