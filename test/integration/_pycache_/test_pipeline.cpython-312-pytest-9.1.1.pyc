@@ -1,0 +1,35 @@
+?
+    蟴纉"  ?                   箴   ? d Z ddlZddlmc mZ ddlZddlZ	ddl
+Z
+ddlmZ e
+j                  j                  d e ee?      j"                  j"                  j"                  dz  ?      ?       d? Zd? Zd? Zd? Zy)	z(Integration tests for the full pipeline.?    N)?Path?srcc                  驢  ? ddl m}   | dddd??      }|j                  }d}||k(  }|s璽        j                  d	|fd
+||f?      dt        j                  ?       v st        j                  |?      rt        j                  |?      ndt        j                  |?      t        j                  |?      d?z  }d
+d|iz  }t        t        j                  |?      ?      ?d x}x}}|j                  }d}||kD  }|s璽        j                  d|fd||f?      dt        j                  ?       v st        j                  |?      rt        j                  |?      ndt        j                  |?      t        j                  |?      d?z  }d
+d|iz  }t        t        j                  |?      ?      ?d x}x}}y )Nr   ??run_multistart_search?test?   ?   ?   ??n_restarts?seed?NUMERICAL??==)z.%(py2)s
+{%(py2)s = %(py0)s.status
+} == %(py5)s?r??py0?py2?py5?assert %(py7)s?py7)?>)z0%(py2)s
+{%(py2)s = %(py0)s.objective
+} > %(py5)s)?atlas.search.multistartr   ?status?@pytest_ar?_call_reprcompare?@py_builtins?locals?_should_repr_global_name?_saferepr?AssertionError?_format_explanation?objective)r   r   ?@py_assert1?@py_assert4?@py_assert3?@py_format6?@py_format8s          ?/workspace/erdos-proof-atlas/tests/integration/test_pipeline.py?test_search_produces_numericalr+      s?   € ?=?榝燼癆窧??€A????"恵?"?恵?"?"?"?"?恵?"?"?"?"?"?"??"?"?"??"?"?"??"?"?"恵?"?"?"?"?"?"?"?????????????????????????????????????????    c                  螃  ? ddl m}  ddlm}m}  | dddd??      } |dt        j                  |j                  ?      ?      } ||?      }|j                  }|syd	d
+t        j                  ?       v st        j                  |?      rt        j                  |?      nd
+t        j                  |?      d?z  }t        t        j                  |?      ?      ?d }y )Nr   r   )?PackingConfiguration?evaluate_configurationr   r	   ?   r   r   z*assert %(py2)s
+{%(py2)s = %(py0)s.passed
+}?vr)r   r   )r   r   ?atlas.geometry.circle_packingr.   r/   ?np?array?coordinates?passedr   r   r   r    r!   r"   r#   )r   r.   r/   r   ?configr1   r%   ?@py_format3s           r*   ?test_search_then_verifyr9      s€   € ?=?Z?榝燼癇窻?@€A?!?╝痬﹎?<?=€F???'€B?
+????????????????????????r,   c                  驲  ? ddl m}  | j                  dd??      }|j                  }d }||u}|s璽	        j
+                  d|fd||f?      dt
+        j                  ?       v st	        j                  |?      rt	        j                  |?      ndt	        j                  |?      t	        j                  |?      d	?z  }d
+d|iz  }t        t	        j                  |?      ?      ?d x}x}}|j                  }d }||u}|s璽	        j
+                  d|fd||f?      dt
+        j                  ?       v st	        j                  |?      rt	        j                  |?      ndt	        j                  |?      t	        j                  |?      d	?z  }d
+d|iz  }t        t	        j                  |?      ?      ?d x}x}}y )
+Nr   )?ProvenanceRecordr   r   )r   )?is not)z6%(py2)s
+{%(py2)s = %(py0)s.git_commit
+} is not %(py5)s?pr   r   r   )z2%(py2)s
+{%(py2)s = %(py0)s.run_id
+} is not %(py5)s)
+?atlas.provenance.trackerr;   ?create?git_commitr   r   r   r   r    r!   r"   r#   ?run_id)r;   r=   r%   r&   r'   r(   r)   s          r*   ?test_provenance_records_commitrB      s?   € ?9????≧??0€A????#榯?#?榯?#?#?#?#?榯?#?#?#?#?#?#??#?#?#??#?#?#??#?#?#榯?#?#?#?#?#?#?#????????????????????????????????????????r,   c                  簋  ? ddl m} m}m}  | |j                  |j
+                  ?      }|j
+                  ?       }|d   }d}||k(  }|slt        j                  d|fd||f?      t        j                  |?      t        j                  |?      d?z  }dd	|iz  }	t        t        j                  |	?      ?      ?d x}x}}|d
+   }| }|s8ddt        j                  |?      iz  }
+t        t        j                  |
+?      ?      ?d x}}y )
+Nr   )?EvidenceStatus?ComputationalEvidence?FormalEvidence?combinedzE3/L1r   )z%(py1)s == %(py4)s)?py1?py4zassert %(py6)s?py6?is_formally_provedzassert not %(py1)srH   )?atlas.schema.evidencerD   rE   rF   ?INDEPENDENTLY_VERIFIED?STATEMENT_FORMALIZED?to_dictr   r   r!   r"   r#   )rD   rE   rF   ?s?d?@py_assert0r'   ?@py_assert2?@py_format5?@py_format7r8   s              r*   ?test_evidence_status_dictrV      s?   € ?[?[??,?C?C繼譋h袳h?i€A?	???€A?圸??#楪?#?楪?#?#?#?#?楪?#?#?#??#?#?#楪?#?#?#?#?#?#?#??%?&?&?&?&?&?&?&?&?&?&?&?&?&?&?&?&r,   )?__doc__?builtinsr   ?_pytest.assertion.rewrite?assertion?rewriter   ?pytest?numpyr3   ?sys?pathlibr   ?path?insert?str?__file__?parentr+   r9   rB   rV   ? r,   r*   ?<module>rf      s\   ?? .?  ? ? ? ? ? ??????憈楬搤?,?,?3?3?:?:窾?B?C? D??? ?'r,   
