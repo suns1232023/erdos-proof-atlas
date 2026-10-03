@@ -1,0 +1,23 @@
+?
+    ^z纉?  ?                  髒   ? d Z ddlmZ ddlZddlZddlmZ ddlmZ ddl	m
+Z
+ e G d? d?      ?       Zdd	?Zdd
+?Z
+y)
+z=Interface between Python certificates and Lean formalization.?    )?annotationsN)?dataclass)?Path)?Optionalc                  骲   ? e Zd ZU ded<   ded<   ded<   ded<   dZded<   dZded	<   d
+d
+?Zdd?Zy)?LeanBuildResult?bool?success?has_sorry?has_axiom?str?output?UNKNOWN?lean_version?mathlib_versionc                髝   ? | j                   r| j                  s
+| j                  sy| j                   r
+| j                  ryy)N?L5?L4?L0)r
+   r   r   ??selfs    鶩/workspace/erdos-proof-atlas/src/atlas/formalization/lean_interface.py?formal_levelzLeanBuildResult.formal_level   s+   € ??????皌穨瞺??廫奬榙焠歯???    c                髷   ? | j                   | j                  | j                  | j                  ?       | j                  | j
+                  d?S )N?r
+   r   r   r   r   r   r   r   s    r   ?to_dictzLeanBuildResult.to_dict   s?   € ???癲穘眓蠸W譙a裇a?$?1?1?3繲譋V袳V?'?7?7?9? 	9r   N)?returnr
+   )r   ?dict)?__name__?__module__?__qualname__?__annotations__r   r   r   r   ? r   r   r   r   
+   s4   ? ?僊?僌?僌?僈?!€L??!?$€O怱?$??9r   r   c                髝  ? 	 t        j                  ddg| ddd??      }|j                  |j                  z   }|j                  dk(  }d|j                  ?       v xs d|v }d	|j                  ?       v }t
+        ||||??      S # t        $ r t
+        dddd??      cY S t         j                  $ r t
+        dddd
+??      cY S w xY w)z)Run lake build and check for sorry/axiom.?lake?buildTi,  )?cwd?capture_output?text?timeoutr   ?sorryzdeclaration uses 'sorry'?axiom)r
+   r   r   r   Fu%   lake not found 鈥?Lean not installedzLean build timed out)	?subprocess?run?stdout?stderr?returncode?lowerr   ?FileNotFoundError?TimeoutExpired)?lean_dir?resultr   r
+   r   r   s         r   ?run_lean_buildr8   !   s?   € ?o??????1皒蠵T衃_衖l?m????????.???#?#爍?(??榲焲檤泘?-?U?K葀?U??榲焲檤泘?-??爓?葃衋g?h?h? O?爑???M?O? 	O??$?$? o?爑??蠾m?n?n?o鷖   侫<A? ?B=?!B=?B=c                 髒   ? 	 t        j                  ddgddd??      } | j                  dk(  S # t        $ r Y yw xY w)Nr&   z	--versionT?   )r)   r*   r+   r   F)r.   r/   r2   ?Exception)?rs    r   ?check_lean_availabler=   1   sB   € ??廚塏楩燢?0?菵衂\?]??弢墊榪? ? ? ??鷖   ?, ?8?8)r6   r   r   r   )r   r	   )?__doc__?__future__r   ?jsonr.   ?dataclassesr   ?pathlibr   ?typingr   r   r8   r=   r$   r   r   ?<module>rD      s;   ?? C? "? ? !? ? ? ?9? 9? ?9?
+o?r   
