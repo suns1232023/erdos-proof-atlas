@@ -1,3 +1,4 @@
+
 """
 Dual-axis evidence model.
 
@@ -6,11 +7,16 @@ Axis L: Formal/Lean evidence (L0-L5)
 
 A result is represented as (E-level, L-level), e.g. E5/L0 or E3/L5.
 No automated component may silently upgrade either axis.
+
+REPAIR V5: Aligned FormalEvidence enum names with canonical L0-L5 definitions:
+  OLD (wrong):  THEOREM_PROVED (L4), LEAN_BUILD_VERIFIED (L5)
+  NEW (correct): PROOF_SOURCE_COMPLETE (L4), KERNEL_CHECKED (L5)
+  This matches lean_check.py, lean_interface.py, and all documentation.
 """
 
 from __future__ import annotations
 from enum import IntEnum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -38,13 +44,23 @@ class ComputationalEvidence(IntEnum):
 
 
 class FormalEvidence(IntEnum):
-    """L-axis: formal/Lean evidence level."""
+    """
+    L-axis: formal/Lean evidence level.
+
+    REPAIR V5: Canonical names aligned with lean_check.py and documentation:
+      L0 NOT_FORMALIZED          — no Lean formalization
+      L1 STATEMENT_FORMALIZED    — mathematically meaningful statement in Lean
+      L2 DEFINITIONS_FORMALIZED  — all definitions in Lean
+      L3 KEY_LEMMAS_FORMALIZED   — key supporting lemmas in Lean
+      L4 PROOF_SOURCE_COMPLETE   — proof source complete, acceptance checks pending
+      L5 KERNEL_CHECKED          — lake build passes, no sorry, no unauthorized axiom
+    """
     NOT_FORMALIZED = 0
     STATEMENT_FORMALIZED = 1
     DEFINITIONS_FORMALIZED = 2
     KEY_LEMMAS_FORMALIZED = 3
-    THEOREM_PROVED = 4
-    LEAN_BUILD_VERIFIED = 5
+    PROOF_SOURCE_COMPLETE = 4   # REPAIR: was THEOREM_PROVED (misleading — sorry allowed)
+    KERNEL_CHECKED = 5          # REPAIR: was LEAN_BUILD_VERIFIED
 
     def label(self) -> str:
         return f"L{self.value}"
@@ -52,16 +68,34 @@ class FormalEvidence(IntEnum):
     def description(self) -> str:
         return {
             0: "Not formalized",
-            1: "Statement formalized in Lean",
-            2: "Definitions formalized",
-            3: "Key lemmas formalized",
-            4: "Theorem proved (may use sorry)",
-            5: "Lean build verified (no sorry, no axiom)",
+            1: "Statement formalized in Lean (mathematically meaningful)",
+            2: "Definitions formalized in Lean",
+            3: "Key lemmas formalized in Lean",
+            4: "Proof source complete (sorry may be present; acceptance checks pending)",
+            5: "Kernel checked: lake build passes, no sorry, no unauthorized axiom",
         }[self.value]
 
-    def is_formally_proved(self) -> bool:
-        """Only L5 (no sorry, no axiom) counts as formally proved."""
-        return self == FormalEvidence.LEAN_BUILD_VERIFIED
+    def sorry_allowed(self) -> bool:
+        """
+        Sorry is allowed at L1-L4 (documented proof gaps).
+        Sorry is PROHIBITED at L5 (KERNEL_CHECKED).
+        """
+        return self.value < 5
+
+    def is_kernel_checked(self) -> bool:
+        """Only L5 (KERNEL_CHECKED) means lake build passes with no sorry."""
+        return self == FormalEvidence.KERNEL_CHECKED
+
+    # Backward compatibility aliases
+    @classmethod
+    def THEOREM_PROVED(cls) -> "FormalEvidence":
+        """Deprecated alias for PROOF_SOURCE_COMPLETE (L4)."""
+        return cls.PROOF_SOURCE_COMPLETE
+
+    @classmethod
+    def LEAN_BUILD_VERIFIED(cls) -> "FormalEvidence":
+        """Deprecated alias for KERNEL_CHECKED (L5)."""
+        return cls.KERNEL_CHECKED
 
 
 @dataclass
@@ -74,16 +108,16 @@ class EvidenceStatus:
     def label(self) -> str:
         return f"{self.computational.label()}/{self.formal.label()}"
 
-    def is_theorem(self) -> bool:
-        """Only E5/L5 with no sorry qualifies as formally proved."""
+    def is_kernel_checked(self) -> bool:
+        """Only E5/L5 with no sorry qualifies as kernel-checked."""
         return (
             self.computational >= ComputationalEvidence.SYMBOLICALLY_CERTIFIED
-            and self.formal == FormalEvidence.LEAN_BUILD_VERIFIED
+            and self.formal == FormalEvidence.KERNEL_CHECKED
         )
 
-    def is_formally_proved(self) -> bool:
-        """Alias for is_theorem() — only L5 qualifies."""
-        return self.formal.is_formally_proved()
+    def sorry_allowed(self) -> bool:
+        """Sorry is allowed at L1-L4, prohibited at L5."""
+        return self.formal.sorry_allowed()
 
     def to_dict(self) -> dict:
         return {
@@ -94,7 +128,8 @@ class EvidenceStatus:
             "formal_label": self.formal.label(),
             "formal_description": self.formal.description(),
             "combined": self.label(),
-            "is_formally_proved": self.is_formally_proved(),
+            "sorry_allowed": self.sorry_allowed(),
+            "is_kernel_checked": self.is_kernel_checked(),
             "notes": self.notes,
         }
 
