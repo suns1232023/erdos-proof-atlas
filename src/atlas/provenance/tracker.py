@@ -1,4 +1,3 @@
-
 """Provenance and reproducibility tracking."""
 
 from __future__ import annotations
@@ -60,14 +59,12 @@ class ProvenanceRecord:
         path.write_text(json.dumps(self.to_dict(), indent=2))
 
 
-def build_sha256sums(directory: Path, exclude: set | None = None) -> dict:
-    """Build SHA256 checksums for all files in directory.
+_MANIFEST_FILES = {"SHA256SUMS", "manifest.json"}
 
-    REPAIR V9: Exclude SHA256SUMS and manifest.json from their own hash
-    computation (they cannot hash themselves without circular dependency).
-    """
-    if exclude is None:
-        exclude = {"SHA256SUMS", "manifest.json"}
+
+def build_sha256sums(directory: Path) -> dict[str, str]:
+    """SHA-256 of every result file, excluding the manifest files that list them
+    (otherwise the manifest would hash itself and never verify)."""
     return {str(f.relative_to(directory)): _sha256(f)
             for f in sorted(directory.rglob("*"))
-            if f.is_file() and f.name not in exclude}
+            if f.is_file() and f.name not in _MANIFEST_FILES}
