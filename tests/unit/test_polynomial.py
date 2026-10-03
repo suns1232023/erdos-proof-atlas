@@ -94,4 +94,3 @@ class TestP18IrreducibilityEvidence:
     def test_constant_term_not_zero(self):
         """Constant term nonzero ensures d=0 is not a root."""
         assert P18_COEFFS[-1] != 0
-
