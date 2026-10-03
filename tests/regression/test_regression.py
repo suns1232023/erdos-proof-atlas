@@ -185,4 +185,3 @@ class TestRegressionKeywords:
     def test_bug006_finite_field_reduction_present(self):
         """BUG-006: 'finite-field reduction' must be in keywords."""
         assert "finite-field reduction" in self.CORRECT_KEYWORDS
-
