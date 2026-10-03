@@ -1,33 +1,176 @@
-name: Lean Check
+
+# lean-check.yml — Lean 4 formal verification CI workflow
+#
+# REPAIR NOTE (P0 Fix):
+#   - Removed "lake exe cache get || true" — replaced with strict execution
+#   - sorry detection now causes CI FAILURE (not just WARNING)
+#   - Lean unavailability causes CI FAILURE (not silent success)
+#   - Added lake-manifest.json validation
+
+name: CI — Lean 4 Formal Verification
 
 on:
   push:
-    paths: ["formal/**"]
-  workflow_dispatch:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
 
 jobs:
   lean-build:
+    name: Lean 4 Build (lake build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Lean 4
+
+      - name: Install Lean 4 (elan)
         run: |
           curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
           echo "$HOME/.elan/bin" >> $GITHUB_PATH
-      - name: Cache mathlib
-        uses: actions/cache@v4
-        with:
-          path: ~/.elan
-          key: lean-${{ hashFiles('formal/lean/lean-toolchain') }}
+
+      - name: Verify Lean toolchain
+        run: |
+          cd formal/lean
+          lean --version
+          lake --version
+          echo "[PASS] Lean toolchain available"
+
+      - name: Validate lake-manifest.json exists
+        # REPAIR: lake-manifest.json must be committed (not fabricated)
+        run: |
+          if [ ! -f formal/lean/lake-manifest.json ]; then
+            echo "[FAIL] lake-manifest.json missing."
+            echo "Run 'lake update' in formal/lean/ and commit the result."
+            exit 1
+          fi
+          echo "[PASS] lake-manifest.json present"
+
+      - name: Get Lean/mathlib cache
+        # REPAIR: Removed || true — cache failure is a real error
+        run: |
+          cd formal/lean
+          lake exe cache get
+          echo "[PASS] Lean cache retrieved"
+
       - name: Build Lean project
         run: |
           cd formal/lean
-          lake exe cache get || true
           lake build
-      - name: Check for sorry
+          echo "[PASS] lake build succeeded"
+
+  lean-sorry-check:
+    name: Lean Sorry Detection (strict)
+    runs-on: ubuntu-latest
+    needs: lean-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for sorry in Lean files
+        # REPAIR: sorry detection now causes CI FAILURE, not just WARNING
+        # A theorem with sorry cannot be at L5 (KERNEL_CHECKED).
         run: |
-          if grep -r "sorry" formal/lean/ErdosAtlas/ --include="*.lean"; then
-            echo "WARNING: sorry found — formal level is L4, not L5"
-          else
-            echo "No sorry found — formal level may be L5"
+          SORRY_FOUND=0
+          while IFS= read -r -d '' file; do
+            # Skip pure comment lines (lines starting with --)
+            if grep -n "sorry" "$file" | grep -v "^\s*--" | grep -q "sorry"; then
+              echo "[FAIL] sorry found in: $file"
+              grep -n "sorry" "$file" | grep -v "^\s*--"
+              SORRY_FOUND=1
+            fi
+          done < <(find formal/lean/ErdosAtlas -name "*.lean" -print0)
+
+          if [ "$SORRY_FOUND" -eq 1 ]; then
+            echo ""
+            echo "ERROR: sorry found in Lean files."
+            echo "Theorems with sorry cannot be at L5 (KERNEL_CHECKED)."
+            echo "Either:"
+            echo "  1. Remove sorry and complete the proof (advance to L5)"
+            echo "  2. Downgrade formal level to L1-L4 in documentation"
+            exit 1
           fi
+          echo "[PASS] No sorry found in ErdosAtlas Lean files"
+
+      - name: Check theorem naming consistency
+        # REPAIR: Verify canonical theorem name exists in Lean source
+        run: |
+          CANONICAL="circlePacking10MinDistBound"
+          if ! grep -r "$CANONICAL" formal/lean/ErdosAtlas/ --include="*.lean" -q; then
+            echo "[FAIL] Canonical theorem '$CANONICAL' not found in Lean source"
+            exit 1
+          fi
+          echo "[PASS] Canonical theorem name '$CANONICAL' found in Lean source"
+
+      - name: Check no Float in theorem statements
+        # REPAIR: Float must not be used in core formal theorems
+        run: |
+          FLOAT_FOUND=0
+          while IFS= read -r -d '' file; do
+            if grep -n "theorem\|def " "$file" | grep -q "Float"; then
+              echo "[FAIL] Float found in theorem/def in: $file"
+              grep -n "theorem\|def " "$file" | grep "Float"
+              FLOAT_FOUND=1
+            fi
+          done < <(find formal/lean/ErdosAtlas -name "*.lean" -print0)
+
+          if [ "$FLOAT_FOUND" -eq 1 ]; then
+            echo "ERROR: Float used in formal theorem. Use ℝ (Real) instead."
+            exit 1
+          fi
+          echo "[PASS] No Float in theorem statements"
+
+  lean-structure-check:
+    name: Lean Project Structure Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required Lean files exist
+        run: |
+          MISSING=0
+          REQUIRED_FILES=(
+            "formal/lean/lakefile.toml"
+            "formal/lean/lean-toolchain"
+            "formal/lean/lake-manifest.json"
+            "formal/lean/Main.lean"
+            "formal/lean/ErdosAtlas/Basic.lean"
+            "formal/lean/ErdosAtlas/Geometry/Basic.lean"
+            "formal/lean/ErdosAtlas/CirclePacking/N10.lean"
+            "formal/lean/ErdosAtlas/Problems/SquarePacking.lean"
+          )
+
+          for f in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "[FAIL] Missing required file: $f"
+              MISSING=1
+            else
+              echo "[OK]   $f"
+            fi
+          done
+
+          if [ "$MISSING" -eq 1 ]; then
+            echo ""
+            echo "ERROR: Required Lean files are missing."
+            exit 1
+          fi
+          echo "[PASS] All required Lean files present"
+
+      - name: Verify lakefile.toml has mathlib dependency
+        run: |
+          if ! grep -q "mathlib" formal/lean/lakefile.toml; then
+            echo "[FAIL] lakefile.toml missing mathlib dependency"
+            echo "Add [[require]] block with mathlib git + rev"
+            exit 1
+          fi
+          if ! grep -q "\[\[require\]\]" formal/lean/lakefile.toml; then
+            echo "[FAIL] lakefile.toml missing [[require]] block"
+            exit 1
+          fi
+          echo "[PASS] lakefile.toml has mathlib dependency"
+
+      - name: Verify no || true in CI-critical commands
+        run: |
+          if grep -r "|| true" .github/workflows/ | grep -v "^#"; then
+            echo "[FAIL] Found '|| true' in CI workflows — this suppresses errors"
+            echo "Remove all '|| true' from mandatory verification steps"
+            exit 1
+          fi
+          echo "[PASS] No '|| true' found in CI workflows"
