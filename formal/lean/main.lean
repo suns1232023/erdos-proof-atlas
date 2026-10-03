@@ -1,3 +1,4 @@
+
 -- Main.lean — ErdosAtlas executable entry point
 import ErdosAtlas.Basic
 
