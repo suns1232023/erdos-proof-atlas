@@ -1,13 +1,10 @@
-
 # lakefile.toml — ErdosAtlas Lean 4 project
-#
-# Setup after clone:
+# Setup:
 #   cd formal/lean
 #   lake update
 #   lake exe cache get
 #   lake build
 
-[package]
 name = "ErdosAtlas"
 version = "0.1.0"
 defaultTargets = ["ErdosAtlas"]
