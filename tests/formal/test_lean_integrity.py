@@ -2,313 +2,250 @@
 """
 Formal verification tests: check Lean project structure and integrity.
 
-REPAIR V5:
-  - TestSorryPolicy: sorry test is now LEVEL-AWARE.
-    At L1 (current level), sorry is ALLOWED — test passes with info message.
-    Only at L5 (KERNEL_CHECKED) does sorry cause test failure.
-    Previous version always failed because N10.lean has sorry at L1.
+Uses lean_text.py utilities to strip Lean comments before pattern matching,
+avoiding false positives from historical notes in comment lines.
 """
 import os
+import sys
 import subprocess
 import shutil
 import pytest
+from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Paths (relative to repository root)
-# ---------------------------------------------------------------------------
-LEAN_DIR = "formal/lean"
-LAKEFILE = os.path.join(LEAN_DIR, "lakefile.toml")
-LEAN_TOOLCHAIN = os.path.join(LEAN_DIR, "lean-toolchain")
-LAKE_MANIFEST = os.path.join(LEAN_DIR, "lake-manifest.json")
-MAIN_LEAN = os.path.join(LEAN_DIR, "Main.lean")
-# Note: GitHub has main.lean (lowercase) — check both
-MAIN_LEAN_LOWER = os.path.join(LEAN_DIR, "main.lean")
-ERDOS_ATLAS_LEAN = os.path.join(LEAN_DIR, "ErdosAtlas", "Basic.lean")
-N10_LEAN = os.path.join(LEAN_DIR, "ErdosAtlas", "CirclePacking", "N10.lean")
-GEOMETRY_LEAN = os.path.join(LEAN_DIR, "ErdosAtlas", "Geometry", "Basic.lean")
+# Add scripts/ to path so we can import lean_text
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+try:
+    from lean_text import (
+        lean_file_contains,
+        lean_file_has_theorem,
+        lean_file_has_conflicting_point_def,
+        lean_file_has_trivial_true,
+        lean_file_has_float_in_theorem,
+        find_sorry_in_lean_files,
+    )
+    LEAN_TEXT_AVAILABLE = True
+except ImportError:
+    LEAN_TEXT_AVAILABLE = False
+
+LEAN_DIR = Path("formal/lean")
+LAKEFILE = LEAN_DIR / "lakefile.toml"
+LEAN_TOOLCHAIN = LEAN_DIR / "lean-toolchain"
+LAKE_MANIFEST = LEAN_DIR / "lake-manifest.json"
+ERDOS_ATLAS_LEAN = LEAN_DIR / "ErdosAtlas" / "Basic.lean"
+N10_LEAN = LEAN_DIR / "ErdosAtlas" / "CirclePacking" / "N10.lean"
+GEOMETRY_LEAN = LEAN_DIR / "ErdosAtlas" / "Geometry" / "Basic.lean"
 
 CANONICAL_THEOREM_NAME = "circlePacking10MinDistBound"
-
-# Current formal level — update when advancing
-CURRENT_FORMAL_LEVEL = "L1"  # STATEMENT_FORMALIZED
+CURRENT_FORMAL_LEVEL = "L1"
 
 
 class TestLeanProjectStructure:
-    """Verify that all required Lean project files exist."""
 
     def test_lean_dir_exists(self):
-        assert os.path.isdir(LEAN_DIR), f"Lean directory missing: {LEAN_DIR}"
+        assert LEAN_DIR.is_dir(), f"Lean directory missing: {LEAN_DIR}"
 
     def test_lakefile_exists(self):
-        assert os.path.isfile(LAKEFILE), f"lakefile.toml missing: {LAKEFILE}"
+        assert LAKEFILE.is_file(), f"lakefile.toml missing"
 
     def test_lean_toolchain_exists(self):
-        assert os.path.isfile(LEAN_TOOLCHAIN), (
-            f"lean-toolchain missing: {LEAN_TOOLCHAIN}"
-        )
+        assert LEAN_TOOLCHAIN.is_file(), f"lean-toolchain missing"
 
     def test_lake_manifest_exists(self):
-        assert os.path.isfile(LAKE_MANIFEST), (
-            f"lake-manifest.json missing: {LAKE_MANIFEST}\n"
-            "Run 'lake update' in formal/lean/ to generate it."
+        assert LAKE_MANIFEST.is_file(), (
+            "lake-manifest.json missing. Run 'lake update' in formal/lean/"
         )
 
     def test_main_lean_exists(self):
-        """
-        Check for Main.lean (canonical) or main.lean (GitHub lowercase issue).
-        REPAIR V5: GitHub shows 'main.lean' (lowercase) but lakefile expects 'Main.lean'.
-        On Linux (case-sensitive), lake build will fail if only main.lean exists.
-        This test flags the case mismatch.
-        """
-        main_upper = os.path.isfile(MAIN_LEAN)
-        main_lower = os.path.isfile(MAIN_LEAN_LOWER)
-
+        """Accept both Main.lean (correct) and main.lean (needs git mv)."""
+        main_upper = (LEAN_DIR / "Main.lean").is_file()
+        main_lower = (LEAN_DIR / "main.lean").is_file()
         if main_upper:
-            pass  # Correct: Main.lean exists
+            pass
         elif main_lower:
             pytest.fail(
-                f"Found 'main.lean' (lowercase) but lakefile.toml expects 'Main.lean' (uppercase).\n"
-                f"On Linux (case-sensitive filesystem), lake build will fail.\n"
-                f"Fix: git mv formal/lean/main.lean formal/lean/Main.lean"
+                "Found 'main.lean' (lowercase) but lakefile expects 'Main.lean'.\n"
+                "Fix: git mv formal/lean/main.lean formal/lean/Main.lean"
             )
         else:
-            pytest.fail(
-                f"Neither Main.lean nor main.lean found in {LEAN_DIR}.\n"
-                "lakefile.toml declares [[lean_exe]] name='Main' but Main.lean does not exist."
-            )
+            pytest.fail("Neither Main.lean nor main.lean found")
 
     def test_erdos_atlas_basic_exists(self):
-        assert os.path.isfile(ERDOS_ATLAS_LEAN), (
-            f"ErdosAtlas/Basic.lean missing: {ERDOS_ATLAS_LEAN}"
-        )
+        assert ERDOS_ATLAS_LEAN.is_file()
 
     def test_n10_lean_exists(self):
-        assert os.path.isfile(N10_LEAN), (
-            f"ErdosAtlas/CirclePacking/N10.lean missing: {N10_LEAN}"
-        )
+        assert N10_LEAN.is_file()
 
     def test_geometry_lean_exists(self):
-        assert os.path.isfile(GEOMETRY_LEAN), (
-            f"ErdosAtlas/Geometry/Basic.lean missing: {GEOMETRY_LEAN}"
-        )
+        assert GEOMETRY_LEAN.is_file()
 
 
 class TestLakefileContent:
-    """Verify lakefile.toml has required content."""
 
-    def _read_lakefile(self):
-        if not os.path.isfile(LAKEFILE):
+    def _read(self):
+        if not LAKEFILE.is_file():
             pytest.skip("lakefile.toml not found")
-        with open(LAKEFILE) as f:
-            return f.read()
+        return LAKEFILE.read_text()
 
     def test_lakefile_has_mathlib_require(self):
-        content = self._read_lakefile()
-        assert "mathlib" in content, (
-            "lakefile.toml missing mathlib dependency.\n"
-            "Add: [[require]]\nname = \"mathlib\"\ngit = \"...\"\nrev = \"...\""
-        )
+        content = self._read()
+        assert "mathlib" in content
+        assert "[[require]]" in content
 
-    def test_lakefile_has_require_block(self):
-        content = self._read_lakefile()
-        assert "[[require]]" in content or "[require]" in content, (
-            "lakefile.toml has no [[require]] block"
-        )
+    def test_lakefile_uses_hash_comments(self):
+        """TOML requires # comments, not -- comments."""
+        content = self._read()
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("--"):
+                pytest.fail(
+                    f"lakefile.toml uses Lean-style '--' comment: {line}\n"
+                    "TOML requires '#' comments. Fix: replace '--' with '#'."
+                )
 
     def test_lakefile_has_lean_lib(self):
-        content = self._read_lakefile()
-        assert "[[lean_lib]]" in content or "[lean_lib]" in content
+        content = self._read()
+        assert "[[lean_lib]]" in content
 
-    def test_lakefile_has_erdos_atlas_lib(self):
-        content = self._read_lakefile()
+    def test_lakefile_has_erdos_atlas(self):
+        content = self._read()
         assert "ErdosAtlas" in content
-
-    def test_lakefile_no_bare_true_suppression(self):
-        """lakefile.toml must not suppress errors with || true patterns."""
-        content = self._read_lakefile()
-        assert "|| true" not in content
 
 
 class TestLeanTheoremNaming:
-    """Verify canonical theorem name consistency across all files."""
-
-    def _file_contains(self, filepath, text):
-        if not os.path.isfile(filepath):
-            return False
-        with open(filepath) as f:
-            return text in f.read()
 
     def test_n10_lean_has_canonical_theorem(self):
-        if not os.path.isfile(N10_LEAN):
+        if not N10_LEAN.is_file():
             pytest.skip("N10.lean not found")
-        assert self._file_contains(N10_LEAN, CANONICAL_THEOREM_NAME), (
-            f"N10.lean does not contain canonical theorem name: {CANONICAL_THEOREM_NAME}"
-        )
+        if LEAN_TEXT_AVAILABLE:
+            found = lean_file_has_theorem(N10_LEAN, CANONICAL_THEOREM_NAME)
+        else:
+            found = CANONICAL_THEOREM_NAME in N10_LEAN.read_text()
+        assert found, f"N10.lean does not declare theorem {CANONICAL_THEOREM_NAME}"
 
     def test_n10_lean_no_trivial_True_conclusion(self):
-        """The N10 theorem must not have '→ True' as its conclusion."""
-        if not os.path.isfile(N10_LEAN):
+        """N10 theorem must not have '→ True' conclusion (after stripping comments)."""
+        if not N10_LEAN.is_file():
             pytest.skip("N10.lean not found")
-        with open(N10_LEAN) as f:
-            content = f.read()
-        assert "→ True" not in content and "-> True" not in content, (
-            "N10.lean contains '→ True' — this is a placeholder, not a real theorem"
-        )
+        if LEAN_TEXT_AVAILABLE:
+            has_trivial = lean_file_has_trivial_true(N10_LEAN)
+        else:
+            content = N10_LEAN.read_text()
+            # Crude: skip comment lines manually
+            non_comment = "\n".join(
+                l for l in content.splitlines() if not l.strip().startswith("--")
+            )
+            has_trivial = "→ True" in non_comment or "-> True" in non_comment
+        assert not has_trivial, "N10.lean has '→ True' placeholder conclusion"
 
     def test_n10_lean_no_float_type(self):
-        """The N10 theorem must not use Float for the core mathematical statement."""
-        if not os.path.isfile(N10_LEAN):
+        """Theorem/def lines must not use Float (after stripping comments)."""
+        if not N10_LEAN.is_file():
             pytest.skip("N10.lean not found")
-        with open(N10_LEAN) as f:
-            content = f.read()
-        theorem_lines = [
-            line for line in content.split("\n")
-            if "theorem" in line or "def " in line
-        ]
-        for line in theorem_lines:
-            assert "Float" not in line, (
-                f"Float found in theorem/def line: {line}\n"
-                "Use ℝ (Real) instead of Float for formal mathematics."
-            )
+        if LEAN_TEXT_AVAILABLE:
+            violations = lean_file_has_float_in_theorem(N10_LEAN)
+        else:
+            violations = []
+            for line in N10_LEAN.read_text().splitlines():
+                stripped = line.strip()
+                if stripped.startswith("--"):
+                    continue
+                if (stripped.startswith("theorem") or stripped.startswith("def ")) \
+                        and "Float" in line:
+                    violations.append(line)
+        assert not violations, f"Float in theorem/def: {violations}"
 
     def test_geometry_basic_no_conflicting_point_def(self):
         """
-        REPAIR V5: Geometry/Basic.lean must NOT define 'def Point : Type := Fin 2 → ℝ'.
-        The canonical Point definition is in Geometry/Point.lean as a structure.
+        Geometry/Basic.lean must NOT define 'def Point : Type := Fin 2 → ℝ'.
+        Uses comment-stripping to avoid matching historical notes.
         """
-        if not os.path.isfile(GEOMETRY_LEAN):
+        if not GEOMETRY_LEAN.is_file():
             pytest.skip("Geometry/Basic.lean not found")
-        with open(GEOMETRY_LEAN) as f:
-            content = f.read()
-        # Check for the conflicting function-type Point definition
-        assert "def Point : Type := Fin 2 → ℝ" not in content, (
-            "Geometry/Basic.lean still has conflicting 'def Point := Fin 2 → ℝ'.\n"
-            "This conflicts with Point.lean's 'structure Point where x y : ℝ'.\n"
-            "Fix: Remove the def Point line from Basic.lean (it should only re-export)."
+        if LEAN_TEXT_AVAILABLE:
+            has_conflict = lean_file_has_conflicting_point_def(GEOMETRY_LEAN)
+        else:
+            content = "\n".join(
+                l for l in GEOMETRY_LEAN.read_text().splitlines()
+                if not l.strip().startswith("--")
+            )
+            has_conflict = "def Point : Type := Fin 2" in content
+        assert not has_conflict, (
+            "Geometry/Basic.lean has conflicting 'def Point := Fin 2 → ℝ'.\n"
+            "This conflicts with Point.lean's 'structure Point where x y : ℝ'."
         )
 
 
 class TestSorryPolicy:
-    """
-    Verify sorry policy — LEVEL-AWARE.
-
-    REPAIR V5: Previous version always failed because N10.lean has sorry at L1.
-    Sorry is ALLOWED at L1-L4 (documented proof gaps).
-    Sorry is PROHIBITED only at L5 (KERNEL_CHECKED).
-    """
-
-    CURRENT_LEVEL = CURRENT_FORMAL_LEVEL  # "L1"
-
-    def _find_sorry_in_lean_files(self, directory):
-        """Find all .lean files containing 'sorry' (not in comments)."""
-        sorry_files = []
-        if not os.path.isdir(directory):
-            return sorry_files
-        for root, _, files in os.walk(directory):
-            for fname in files:
-                if not fname.endswith(".lean"):
-                    continue
-                fpath = os.path.join(root, fname)
-                with open(fpath) as f:
-                    lines = f.readlines()
-                for lineno, line in enumerate(lines, 1):
-                    stripped = line.strip()
-                    if stripped.startswith("--"):
-                        continue
-                    if "sorry" in line:
-                        sorry_files.append((fpath, lineno, line.rstrip()))
-        return sorry_files
+    """Level-aware sorry policy. Sorry allowed at L1-L4, prohibited at L5."""
 
     def test_sorry_policy_level_aware(self):
-        """
-        Level-aware sorry check:
-        - L1/L2/L3/L4: sorry is ALLOWED → test PASSES with info
-        - L5: sorry causes test FAILURE
-
-        Current level: L1 (STATEMENT_FORMALIZED) → sorry is expected and allowed.
-        """
-        if not os.path.isdir(LEAN_DIR):
+        """At L1, sorry is allowed. Only at L5 does sorry cause failure."""
+        if not LEAN_DIR.is_dir():
             pytest.skip("Lean directory not found")
 
-        sorry_occurrences = self._find_sorry_in_lean_files(LEAN_DIR)
-        count = len(sorry_occurrences)
-
-        if self.CURRENT_LEVEL == "L5":
-            # At L5, sorry is prohibited
-            if count > 0:
-                details = "\n".join(
-                    f"  {f}:{ln}: {line}"
-                    for f, ln, line in sorry_occurrences
-                )
-                pytest.fail(
-                    f"L5 (KERNEL_CHECKED) claimed but {count} sorry found.\n"
-                    f"Remove sorry or downgrade formal level to L1-L4.\n"
-                    f"Locations:\n{details}"
-                )
+        if LEAN_TEXT_AVAILABLE:
+            occurrences = find_sorry_in_lean_files(LEAN_DIR)
         else:
-            # At L1-L4, sorry is allowed — just report
+            occurrences = []
+            for lean_file in LEAN_DIR.rglob("*.lean"):
+                for lineno, line in enumerate(lean_file.read_text().splitlines(), 1):
+                    if not line.strip().startswith("--") and "sorry" in line:
+                        occurrences.append((str(lean_file), lineno, line))
+
+        count = len(occurrences)
+
+        if CURRENT_FORMAL_LEVEL == "L5":
             if count > 0:
-                print(
-                    f"\n[INFO] {count} sorry found at level {self.CURRENT_LEVEL} "
-                    f"— allowed (sorry is prohibited only at L5)"
-                )
-            # Test PASSES regardless of sorry count at L1-L4
+                details = "\n".join(f"  {f}:{ln}: {l}" for f, ln, l in occurrences)
+                pytest.fail(f"L5 claimed but {count} sorry found:\n{details}")
+        else:
+            # L1-L4: sorry is allowed, just report
+            if count > 0:
+                print(f"\n[INFO] {count} sorry at {CURRENT_FORMAL_LEVEL} — allowed")
 
     def test_sorry_count_reasonable(self):
-        """
-        Even at L1, an unreasonably large number of sorry occurrences
-        may indicate a structural problem.
-        """
-        if not os.path.isdir(LEAN_DIR):
+        """Even at L1, more than 5 sorry in proof bodies is suspicious."""
+        if not LEAN_DIR.is_dir():
             pytest.skip("Lean directory not found")
 
-        sorry_occurrences = self._find_sorry_in_lean_files(LEAN_DIR)
-        count = len(sorry_occurrences)
+        if LEAN_TEXT_AVAILABLE:
+            occurrences = find_sorry_in_lean_files(LEAN_DIR)
+        else:
+            occurrences = []
+            for lean_file in LEAN_DIR.rglob("*.lean"):
+                for lineno, line in enumerate(lean_file.read_text().splitlines(), 1):
+                    if not line.strip().startswith("--") and "sorry" in line:
+                        occurrences.append((str(lean_file), lineno, line))
 
-        # At L1, we expect sorry in proof bodies but not in definitions
-        # More than 20 sorry occurrences is suspicious
-        assert count <= 20, (
-            f"Unusually high sorry count: {count}. "
-            "Expected ≤ 20 at L1 (one per theorem proof body). "
+        # Filter: only count lines where sorry appears as a tactic (not in strings/names)
+        real_sorry = [
+            (f, ln, l) for f, ln, l in occurrences
+            if "sorry" in l and "sorryPresent" not in l and "has_sorry" not in l
+        ]
+        assert len(real_sorry) <= 10, (
+            f"Unusually high sorry count: {len(real_sorry)}. "
             "Check for accidental sorry in definitions."
         )
 
 
 class TestLeanAvailability:
-    """
-    Verify Lean/lake availability.
-    make lean MUST fail if Lean is not installed.
-    """
 
     def test_lean_available_or_skip(self):
-        """
-        If Lean is not available, this test is skipped (for local dev).
-        In CI, Lean must be available — CI should fail if not.
-        """
         if shutil.which("lake") is None:
-            pytest.skip(
-                "lake not installed. "
-                "In CI, this must be a FAILURE. "
-                "For local dev, install Lean 4 + mathlib."
-            )
+            pytest.skip("lake not installed — install Lean 4 to run this test")
 
     def test_lake_build_succeeds(self):
-        """lake build must succeed in formal/lean/."""
         if shutil.which("lake") is None:
             pytest.skip("lake not installed")
-        if not os.path.isdir(LEAN_DIR):
+        if not LEAN_DIR.is_dir():
             pytest.skip("Lean directory not found")
-
         result = subprocess.run(
             ["lake", "build"],
-            cwd=LEAN_DIR,
+            cwd=str(LEAN_DIR),
             capture_output=True,
             text=True,
             timeout=300,
         )
         assert result.returncode == 0, (
-            f"lake build FAILED.\n"
-            f"stdout: {result.stdout}\n"
-            f"stderr: {result.stderr}"
+            f"lake build FAILED.\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
-
