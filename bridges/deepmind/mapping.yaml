@@ -1,0 +1,8 @@
+problems:
+  - atlas_id: circle-packing-square-n10
+    deepmind_category: geometry
+    ams: [52]
+    lean_theorem: circlePacking10MinDistBound
+    lean_file: ErdosAtlas/CirclePacking/N10.lean
+    formal_status: STATEMENT_FORMALIZED
+    computational_status: SYMBOLICALLY_CERTIFIED
