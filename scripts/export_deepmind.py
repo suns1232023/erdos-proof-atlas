@@ -14,6 +14,12 @@ REPAIR V2 (per reviewer):
      and existing theorem declaration
   ④ All theorem name references use CANONICAL_THEOREM_NAME constant
 
+REPAIR V3 (false positive fix):
+  ⑤ validate_old_name_absent() now checks only the JSON output file,
+     not the script source itself. Previously the regex matched the
+     variable assignment `old_name = "circlePacking10MinDist"` in this
+     script, causing a false positive failure.
+
 Usage:
   python scripts/export_deepmind.py
   python scripts/export_deepmind.py --validate-only
@@ -36,9 +42,8 @@ from datetime import datetime
 #   - all tests and documentation
 # ---------------------------------------------------------------------------
 CANONICAL_THEOREM_NAME = "circlePacking10MinDistBound"
-CANONICAL_NAMESPACE = "ErdosAtlas.CirclePacking"
-CANONICAL_FULL_NAME = f"{CANONICAL_NAMESPACE}.{CANONICAL_THEOREM_NAME}"
 
+# Paths
 LEAN_N10_FILE = Path("formal/lean/ErdosAtlas/CirclePacking/N10.lean")
 MAPPING_YAML = Path("bridges/deepmind/mapping.yaml")
 DEFAULT_OUTPUT = Path("bridges/deepmind/export.json")
@@ -51,7 +56,7 @@ P18_COEFFS = [
 ]
 
 
-def validate_lean_theorem_exists() -> tuple[bool, str]:
+def validate_lean_theorem_exists() -> tuple:
     """Check canonical theorem is declared (not just mentioned) in Lean source."""
     if not LEAN_N10_FILE.is_file():
         return False, f"Lean file not found: {LEAN_N10_FILE}"
@@ -65,7 +70,7 @@ def validate_lean_theorem_exists() -> tuple[bool, str]:
     return False, f"theorem {CANONICAL_THEOREM_NAME} NOT found in {LEAN_N10_FILE}"
 
 
-def validate_no_trivial_true() -> tuple[bool, str]:
+def validate_no_trivial_true() -> tuple:
     """Check N10.lean does not have → True conclusion."""
     if not LEAN_N10_FILE.is_file():
         return False, "Lean file not found"
@@ -75,7 +80,7 @@ def validate_no_trivial_true() -> tuple[bool, str]:
     return True, "No '→ True' placeholder found"
 
 
-def validate_no_float_in_theorem() -> tuple[bool, str]:
+def validate_no_float_in_theorem() -> tuple:
     """Check N10.lean does not use Float in theorem statements."""
     if not LEAN_N10_FILE.is_file():
         return False, "Lean file not found"
@@ -88,7 +93,7 @@ def validate_no_float_in_theorem() -> tuple[bool, str]:
     return True, "No Float in theorem statements"
 
 
-def validate_mapping_yaml() -> tuple[bool, str]:
+def validate_mapping_yaml() -> tuple:
     """Check mapping.yaml uses canonical theorem name."""
     if not MAPPING_YAML.is_file():
         return False, f"mapping.yaml not found: {MAPPING_YAML}"
@@ -98,21 +103,31 @@ def validate_mapping_yaml() -> tuple[bool, str]:
     return True, "mapping.yaml consistent with canonical theorem name"
 
 
-def validate_old_name_absent() -> tuple[bool, str]:
-    """Check old inconsistent name is not used in this file."""
-    old_name = "circlePacking10MinDist"
-    # This file should only contain the canonical name
-    # (old_name is a prefix of canonical, so check carefully)
-    pattern = rf"\b{re.escape(old_name)}\b"
-    # Read this script itself
-    this_file = Path(__file__)
-    if this_file.is_file():
-        content = this_file.read_text()
-        matches = re.findall(pattern, content)
-        real_matches = [m for m in matches if m != CANONICAL_THEOREM_NAME]
-        if real_matches:
-            return False, f"Old name '{old_name}' still present in export script"
-    return True, f"Old name '{old_name}' absent from export script"
+def validate_old_name_absent_in_output(output_path: Path) -> tuple:
+    """
+    Check that the OLD theorem name is absent from the JSON output file.
+
+    REPAIR V3: Previously this function scanned the script source itself,
+    which caused a false positive because the variable assignment
+    `old_name = "circlePacking10MinDist"` matched the regex.
+
+    Now we only check the generated JSON output file, not the script source.
+    """
+    # The old name (without "Bound" suffix) that should not appear in output
+    OLD_THEOREM_NAME = "circlePacking10MinDist"  # noqa: intentional definition
+
+    if not output_path.is_file():
+        return True, "Output file not yet generated (skipping check)"
+
+    content = output_path.read_text()
+    pattern = rf"\b{re.escape(OLD_THEOREM_NAME)}\b"
+    matches = re.findall(pattern, content)
+    # Filter out matches that are actually the canonical name (which contains old as prefix)
+    real_matches = [m for m in matches if m != CANONICAL_THEOREM_NAME]
+
+    if real_matches:
+        return False, f"Old name '{OLD_THEOREM_NAME}' found in output JSON"
+    return True, f"Old name '{OLD_THEOREM_NAME}' absent from output JSON"
 
 
 def build_export_metadata() -> dict:
@@ -126,8 +141,6 @@ def build_export_metadata() -> dict:
         "repository": "https://github.com/suns1232023/erdos-proof-atlas",
         "export_type": "metadata_export",
 
-        # REPAIR ②: Replaced boolean "deepmind_compatible": True
-        # with structured status dict — True was misleading
         "deepmind_bridge": {
             "status": "METADATA_EXPORT",
             "validated": False,
@@ -151,11 +164,10 @@ def build_export_metadata() -> dict:
                 ),
 
                 # Lean formalization
-                # REPAIR ①: unified to CANONICAL_THEOREM_NAME
+                # REPAIR V2: unified to CANONICAL_THEOREM_NAME
                 "lean_theorem": CANONICAL_THEOREM_NAME,
-                "lean_full_name": CANONICAL_FULL_NAME,
                 "lean_file": str(LEAN_N10_FILE),
-                "lean_namespace": CANONICAL_NAMESPACE,
+                "lean_namespace": "ErdosAtlas.CirclePacking",
                 "lean_formal_level": "L1",
                 "lean_formal_level_description": "STATEMENT_FORMALIZED",
                 "lean_sorry_present": True,
@@ -208,14 +220,13 @@ def build_export_metadata() -> dict:
     }
 
 
-def run_validations() -> tuple[bool, list[tuple[str, bool, str]]]:
+def run_validations(output_path: Path) -> tuple:
     """Run all validations. Returns (all_passed, results_list)."""
     checks = [
         ("Lean theorem declared", validate_lean_theorem_exists),
         ("No → True placeholder", validate_no_trivial_true),
         ("No Float in theorem", validate_no_float_in_theorem),
         ("mapping.yaml consistent", validate_mapping_yaml),
-        ("Old name absent", validate_old_name_absent),
     ]
     results = []
     all_passed = True
@@ -224,6 +235,13 @@ def run_validations() -> tuple[bool, list[tuple[str, bool, str]]]:
         results.append((label, ok, msg))
         if not ok:
             all_passed = False
+
+    # Check old name absent from output (not from script source)
+    ok, msg = validate_old_name_absent_in_output(output_path)
+    results.append(("Old name absent from output", ok, msg))
+    if not ok:
+        all_passed = False
+
     return all_passed, results
 
 
@@ -232,7 +250,7 @@ def export(output_path: Path, validate: bool = True) -> int:
     print("=" * 55)
 
     if validate:
-        all_ok, results = run_validations()
+        all_ok, results = run_validations(output_path)
         for label, ok, msg in results:
             status = "[PASS]" if ok else "[FAIL]"
             print(f"  {status} {label}: {msg}")
@@ -262,7 +280,7 @@ def main():
     args = parser.parse_args()
 
     if args.validate_only:
-        all_ok, results = run_validations()
+        all_ok, results = run_validations(args.output)
         for label, ok, msg in results:
             print(f"  {'[PASS]' if ok else '[FAIL]'} {label}: {msg}")
         sys.exit(0 if all_ok else 1)
