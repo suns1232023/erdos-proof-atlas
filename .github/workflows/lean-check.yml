@@ -38,7 +38,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full clone required: lake needs complete git history
-                          # to checkout pinned mathlib commits from lake-manifest.json
 
       - name: Install Lean 4 (elan)
         run: |
@@ -75,6 +74,8 @@ jobs:
     needs: lean-build
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full clone required for lake
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -85,6 +86,15 @@ jobs:
         run: |
           curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
           echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Update lake manifest and get mathlib cache
+        # lean_check.py runs lake build internally.
+        # This job is a separate container from lean-build, so we need
+        # to re-fetch the mathlib cache to avoid "unable to read tree" errors.
+        run: |
+          cd formal/lean
+          lake update
+          lake exe cache get
 
       - name: Run canonical Lean checker (L1 level)
         # lean_check.py reads project_contract.json as single source of truth.
