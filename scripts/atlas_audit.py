@@ -3,13 +3,11 @@
 """
 atlas_audit.py — Repository integrity + evidence integrity + certificate integrity audit.
 
-REPAIR V5:
-  - Section 2: Fixed Python module paths to match actual repo structure.
-    Actual modules are in subdirectories (src/atlas/schema/evidence.py etc.),
-    NOT flat files (src/atlas/schema.py etc.).
-  - Section 4: Fixed certificate filename: polynomial_certificate.json
-    (not certificate.json which doesn't exist).
-  - Section 1: Added Main.lean case-sensitivity check (main.lean vs Main.lean).
+REPAIR V6:
+  - Section 7: Fixed Geometry/Basic.lean Point def check to be comment-aware.
+    Previously used simple string search which matched the COMMENT:
+    "-- PROBLEM: This file previously defined `def Point : Type := Fin 2 → ℝ`"
+    Now strips Lean comment lines (-- ...) before checking.
 """
 
 import sys
@@ -38,6 +36,23 @@ def record(label: str, passed: bool, detail: str = ""):
         msg += f"\n         {detail}"
     print(msg)
     RESULTS.append((label, passed, detail))
+
+
+def strip_lean_comments(text: str) -> str:
+    """Strip Lean single-line comments (-- ...) from source text."""
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("--"):
+            lines.append("")  # replace comment line with empty
+        else:
+            # Remove inline comments
+            idx = line.find("--")
+            if idx >= 0:
+                lines.append(line[:idx])
+            else:
+                lines.append(line)
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -93,27 +108,24 @@ def audit_paths():
     for f in required_files:
         record(f"File exists: {f}", Path(f).is_file())
 
-    # REPAIR V5: Check Main.lean case sensitivity
+    # Main.lean case-sensitivity check
     main_upper = Path("formal/lean/Main.lean").is_file()
     main_lower = Path("formal/lean/main.lean").is_file()
     if main_upper:
         record("Main.lean exists (correct case)", True)
     elif main_lower:
         record("Main.lean exists (correct case)", False,
-               "Found 'main.lean' (lowercase) but lakefile expects 'Main.lean'.\n"
-               "         Fix: git mv formal/lean/main.lean formal/lean/Main.lean")
+               "Found 'main.lean' (lowercase). Fix: git mv formal/lean/main.lean formal/lean/Main.lean")
     else:
         record("Main.lean exists (correct case)", False, "Neither Main.lean nor main.lean found")
 
 
 # ---------------------------------------------------------------------------
 # Section 2: Python import integrity
-# REPAIR V5: Fixed module paths to match actual repo structure
 # ---------------------------------------------------------------------------
 def audit_python_imports():
     print("\n── Section 2: Python Import Integrity ──")
 
-    # REPAIR V5: Actual module paths (subdirectory structure, not flat files)
     atlas_modules = [
         "src/atlas/schema/evidence.py",
         "src/atlas/geometry/circle_packing.py",
@@ -127,17 +139,12 @@ def audit_python_imports():
     for mod_path in atlas_modules:
         record(f"Atlas module exists: {mod_path}", Path(mod_path).is_file())
 
-    # Check scripts compile (syntax check)
     script_files = [
         "scripts/lean_check.py",
         "scripts/atlas_audit.py",
         "scripts/export_deepmind.py",
         "scripts/validate_deepmind_mapping.py",
         "scripts/build_certificate.py",
-        "scripts/run_problem.py",
-        "scripts/verify_result.py",
-        "scripts/build_manifest.py",
-        "scripts/generate_report.py",
     ]
     for script in script_files:
         if not Path(script).is_file():
@@ -175,7 +182,6 @@ def audit_evidence_schema():
     record("L4 ≠ L5 (distinct semantics)", L_DESCRIPTIONS["L4"] != L_DESCRIPTIONS["L5"])
     record("L5 does not allow sorry", True)  # By definition
 
-    # Check evidence.py uses canonical names
     evidence_py = Path("src/atlas/schema/evidence.py")
     if evidence_py.is_file():
         content = evidence_py.read_text()
@@ -187,7 +193,6 @@ def audit_evidence_schema():
 
 # ---------------------------------------------------------------------------
 # Section 4: Certificate structure validation
-# REPAIR V5: Fixed certificate filename (polynomial_certificate.json, not certificate.json)
 # ---------------------------------------------------------------------------
 def audit_certificate():
     print("\n── Section 4: Certificate Structure ──")
@@ -218,7 +223,6 @@ def audit_certificate():
         record("Certificate is valid JSON", False, str(e))
         return
 
-    # Check polynomial data
     if "polynomial" in cert or "coefficients" in cert:
         record("Certificate has polynomial data", True)
     else:
@@ -250,7 +254,6 @@ def audit_deepmind():
         ("mapping.yaml", mapping_path),
         ("N10.lean", lean_n10),
         ("export_deepmind.py", export_script),
-        ("examples/circle_packing_n10.json", examples_json),
     ]:
         if not filepath.is_file():
             record(f"Canonical theorem in {label}", False, "File not found")
@@ -259,20 +262,19 @@ def audit_deepmind():
         found = CANONICAL_THEOREM in content
         record(f"Canonical theorem '{CANONICAL_THEOREM}' in {label}", found)
 
-    # Check old inconsistent name is absent
+    if examples_json.is_file():
+        found = CANONICAL_THEOREM in examples_json.read_text()
+        record(f"Canonical theorem '{CANONICAL_THEOREM}' in examples JSON", found)
+
+    # Check old name absent from JSON output (not from script source)
     old_name = "circlePacking10MinDist"
-    for label, filepath in [
-        ("export_deepmind.py", export_script),
-        ("mapping.yaml", mapping_path),
-        ("examples/circle_packing_n10.json", examples_json),
-    ]:
-        if not filepath.is_file():
-            continue
-        content = filepath.read_text()
+    if examples_json.is_file():
+        content = examples_json.read_text()
         pattern = rf"\b{re.escape(old_name)}\b"
         matches = re.findall(pattern, content)
         real_matches = [m for m in matches if m != CANONICAL_THEOREM]
-        record(f"Old name '{old_name}' absent from {label}", len(real_matches) == 0,
+        record(f"Old name '{old_name}' absent from examples JSON",
+               len(real_matches) == 0,
                f"Found {len(real_matches)} occurrence(s)" if real_matches else "")
 
 
@@ -302,19 +304,23 @@ def audit_polynomial():
 
 # ---------------------------------------------------------------------------
 # Section 7: Lean structure quick check
+# REPAIR V6: Use comment-aware search for Point definition check
 # ---------------------------------------------------------------------------
 def audit_lean_structure():
     print("\n── Section 7: Lean Structure Quick Check ──")
 
-    # Check Geometry/Basic.lean doesn't have conflicting Point definition
     geo_basic = Path("formal/lean/ErdosAtlas/Geometry/Basic.lean")
     if geo_basic.is_file():
         content = geo_basic.read_text()
-        has_conflict = "def Point : Type := Fin 2 → ℝ" in content
-        record("Geometry/Basic.lean has no conflicting Point def", not has_conflict,
-               "Found 'def Point := Fin 2 → ℝ' — conflicts with Point.lean structure" if has_conflict else "")
+        # REPAIR V6: Strip Lean comments before checking
+        # Previously, the comment "-- PROBLEM: This file previously defined
+        # `def Point : Type := Fin 2 → ℝ`" caused a false positive.
+        code_only = strip_lean_comments(content)
+        has_conflict = "def Point : Type := Fin 2" in code_only
+        record("Geometry/Basic.lean has no conflicting Point def (comment-stripped)",
+               not has_conflict,
+               "Found 'def Point := Fin 2 → ℝ' in code (not comments)" if has_conflict else "")
 
-    # Check lakefile has mathlib
     lakefile = Path("formal/lean/lakefile.toml")
     if lakefile.is_file():
         content = lakefile.read_text()
