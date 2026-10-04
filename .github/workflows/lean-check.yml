@@ -36,6 +36,9 @@ jobs:
     needs: validate-contract
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full clone required: lake needs complete git history
+                          # to checkout pinned mathlib commits from lake-manifest.json
 
       - name: Install Lean 4 (elan)
         run: |
@@ -47,6 +50,14 @@ jobs:
           cd formal/lean
           lean --version
           lake --version
+
+      - name: Update lake manifest
+        # lake-manifest.json may be stale if lakefile.toml was updated.
+        # Running lake update regenerates the manifest with the correct
+        # mathlib revision, preventing "unable to read tree" git errors.
+        run: |
+          cd formal/lean
+          lake update
 
       - name: Get mathlib cache
         run: |
