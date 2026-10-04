@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""
+validate_contract.py — Cross-file consistency validator for the Lean project.
+
+Architecture:
+  project_contract.json  → declaration (single source of truth)
+  validate_contract.py   → cross-file consistency validator (this file)
+  lean_check.py          → Lean verification engine
+  GitHub Actions         → orchestration only
+
+Usage:
+  python scripts/validate_contract.py          # exits 0 if consistent
+  python scripts/validate_contract.py --json   # machine-readable output
+"""
+
+import sys
+import json
+import argparse
+from pathlib import Path
+
+# Always resolve relative to repository root, regardless of cwd
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CONTRACT_PATH = REPO_ROOT / "formal" / "lean" / "project_contract.json"
+LAKEFILE_PATH = REPO_ROOT / "formal" / "lean" / "lakefile.toml"
+TOOLCHAIN_PATH = REPO_ROOT / "formal" / "lean" / "lean-toolchain"
+MANIFEST_PATH = REPO_ROOT / "formal" / "lean" / "lake-manifest.json"
+
+
+def load_contract() -> dict:
+    if not CONTRACT_PATH.is_file():
+        print(f"[FAIL] {CONTRACT_PATH} not found", file=sys.stderr)
+        sys.exit(1)
+    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
+def load_lakefile() -> dict:
+    if not LAKEFILE_PATH.is_file():
+        return {}
+    try:
+        import tomllib
+        with open(LAKEFILE_PATH, "rb") as f:
+            return tomllib.load(f)
+    except Exception as e:
+        return {"_error": str(e)}
+
+
+def load_toolchain() -> str:
+    if not TOOLCHAIN_PATH.is_file():
+        return ""
+    return TOOLCHAIN_PATH.read_text(encoding="utf-8").strip()
+
+
+def load_manifest() -> dict:
+    if not MANIFEST_PATH.is_file():
+        return {}
+    try:
+        return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"_error": str(e)}
+
+
+def check(results: list, name: str, passed: bool, detail: str = "") -> bool:
+    status = "PASS" if passed else "FAIL"
+    msg = f"  [{status}] {name}"
+    if detail:
+        msg += f": {detail}"
+    print(msg)
+    results.append({"check": name, "status": status, "detail": detail})
+    return passed
+
+
+def validate() -> tuple:
+    contract = load_contract()
+    lakefile = load_lakefile()
+    toolchain = load_toolchain()
+    manifest = load_manifest()
+
+    results = []
+    all_ok = True
+
+    print("=" * 60)
+    print("  Contract Consistency Validation")
+    print(f"  Contract: {CONTRACT_PATH}")
+    print("=" * 60)
+
+    # 1. Contract syntax
+    print("\n[1] Contract syntax")
+    required_fields = [
+        "project_name", "project_mode", "lean_toolchain", "mathlib_rev",
+        "library_root", "executable_root", "executable_entry",
+        "canonical_theorem", "current_formal_level", "required_modules",
+        "sorry_policy", "authorized_axioms",
+    ]
+    for field in required_fields:
+        ok = field in contract
+        if not check(results, f"contract.{field} present", ok):
+            all_ok = False
+
+    # 2. Lean toolchain consistency
+    print("\n[2] Lean toolchain consistency")
+    contract_tc = contract.get("lean_toolchain", "")
+    ok = bool(toolchain) and toolchain == contract_tc
+    if not check(results, "lean-toolchain matches contract",
+                 ok, f"file={toolchain!r}, contract={contract_tc!r}"):
+        all_ok = False
+
+    # 3. Mathlib revision consistency
+    print("\n[3] Mathlib revision consistency")
+    contract_rev = contract.get("mathlib_rev", "")
+
+    lf_requires = lakefile.get("require", [])
+    lf_mathlib = next((r for r in lf_requires if r.get("name") == "mathlib"), {})
+    lf_rev = lf_mathlib.get("rev", "")
+    ok = bool(lf_rev) and lf_rev == contract_rev
+    if not check(results, "lakefile mathlib rev matches contract",
+                 ok, f"lakefile={lf_rev!r}, contract={contract_rev!r}"):
+        all_ok = False
+
+    if "_error" in manifest:
+        check(results, "lake-manifest.json parseable", False, manifest["_error"])
+        all_ok = False
+    elif manifest:
+        manifest_pkgs = manifest.get("packages", [])
+        mathlib_pkg = next((p for p in manifest_pkgs if p.get("name") == "mathlib"), {})
+        manifest_input_rev = mathlib_pkg.get("inputRev", "")
+        ok = bool(manifest_input_rev) and manifest_input_rev == contract_rev
+        if not check(results, "lake-manifest inputRev matches contract",
+                     ok, f"manifest={manifest_input_rev!r}, contract={contract_rev!r}"):
+            all_ok = False
+            print("         -> Run: cd formal/lean && lake update")
+    else:
+        check(results, "lake-manifest.json exists", False, "file missing")
+        all_ok = False
+
+    # 4. Project mode and executable
+    print("\n[4] Project mode and executable")
+    mode = contract.get("project_mode", "")
+    exe_root = contract.get("executable_root", "")
+    exe_entry = contract.get("executable_entry", "")
+
+    if mode == "library_and_executable":
+        lf_exes = lakefile.get("lean_exe", [])
+        lf_exe_names = [e.get("name") for e in lf_exes]
+        ok = exe_root in lf_exe_names
+        if not check(results, f"lakefile declares executable '{exe_root}'",
+                     ok, f"lakefile exes={lf_exe_names}"):
+            all_ok = False
+
+        entry_path = REPO_ROOT / exe_entry
+        ok = entry_path.is_file()
+        if not check(results, f"executable entry exists: {exe_entry}", ok):
+            all_ok = False
+            lower = Path(str(entry_path).replace("Main.lean", "main.lean"))
+            if lower.is_file():
+                print(f"         -> Found lowercase: {lower.relative_to(REPO_ROOT)}")
+                print(f"         -> Fix: git mv {lower.relative_to(REPO_ROOT)} {exe_entry}")
+    elif mode == "library_only":
+        lf_exes = lakefile.get("lean_exe", [])
+        ok = len(lf_exes) == 0
+        if not check(results, "library-only: no lean_exe in lakefile",
+                     ok, f"found: {lf_exes}"):
+            all_ok = False
+
+    # 5. Library root
+    print("\n[5] Library root")
+    lib_root = contract.get("library_root", "")
+    lf_libs = lakefile.get("lean_lib", [])
+    lf_lib_names = [l.get("name") for l in lf_libs]
+    ok = lib_root in lf_lib_names
+    if not check(results, f"lakefile declares library '{lib_root}'",
+                 ok, f"lakefile libs={lf_lib_names}"):
+        all_ok = False
+
+    # 6. Required modules
+    print("\n[6] Required modules")
+    required_modules = contract.get("required_modules", [])
+    missing_modules = []
+    for mod_path in required_modules:
+        full_path = REPO_ROOT / mod_path
+        if not full_path.is_file():
+            missing_modules.append(mod_path)
+    ok = len(missing_modules) == 0
+    if not check(results, f"all {len(required_modules)} required modules present",
+                 ok, f"missing: {missing_modules}" if missing_modules else ""):
+        all_ok = False
+
+    # 7. Sorry policy
+    print("\n[7] Sorry policy")
+    sorry_policy = contract.get("sorry_policy", {})
+    formal_level = contract.get("current_formal_level", "L1")
+    level_policy = sorry_policy.get(formal_level, "unknown")
+    ok = level_policy in ("allowed", "forbidden")
+    check(results, f"sorry policy defined for {formal_level}",
+          ok, f"policy={level_policy!r}")
+
+    # 8. Canonical theorem integrity
+    print("\n[8] Canonical theorem integrity")
+    canonical = contract.get("canonical_theorem", "")
+    ok = bool(canonical)
+    check(results, "canonical_theorem defined", ok, canonical)
+
+    theorem_sha = contract.get("canonical_theorem_sha256", "")
+    if theorem_sha:
+        check(results, "canonical_theorem_sha256 present (integrity lock)", True,
+              f"sha256={theorem_sha[:16]}...")
+    else:
+        check(results, "canonical_theorem_sha256 present (integrity lock)", False,
+              "not set -- theorem statement drift undetectable")
+
+    # Summary
+    print("\n" + "=" * 60)
+    passed = sum(1 for r in results if r["status"] == "PASS")
+    failed = sum(1 for r in results if r["status"] == "FAIL")
+    print(f"  Results: {passed} passed, {failed} failed")
+    if all_ok:
+        print("  [PASS] Contract is internally consistent")
+    else:
+        print("  [FAIL] Contract has inconsistencies -- see above")
+    print("=" * 60)
+
+    return all_ok, results
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Validate project_contract.json against lakefile, toolchain, manifest"
+    )
+    parser.add_argument("--json", action="store_true",
+                        help="Output machine-readable JSON")
+    args = parser.parse_args()
+
+    all_ok, results = validate()
+
+    if args.json:
+        output = {
+            "schema_version": "1.0",
+            "validator": "validate_contract.py",
+            "contract": str(CONTRACT_PATH),
+            "all_passed": all_ok,
+            "checks": results,
+        }
+        print(json.dumps(output, indent=2))
+
+    return 0 if all_ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
